@@ -5,7 +5,7 @@
   "description": "Arcadia WMS - Warehouse Management System",
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vercel dev --listen 3000",
@@ -23,7 +23,7 @@
     "@tanstack/react-query": "^5.62.7",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "^0.45.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",
@@ -45,7 +45,7 @@
     "@vercel/node": "^3.2.29",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.28.1",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.16",

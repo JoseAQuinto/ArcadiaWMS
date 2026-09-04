@@ -23,6 +23,10 @@ export async function createCategory(input: CreateCategoryInput) {
 }
 
 export async function updateCategory(id: number, input: UpdateCategoryInput) {
+  // See updateLocation: an empty payload would produce an UPDATE with no SET.
+  if (Object.keys(input).length === 0) {
+    throw ApiError.badRequest("No has indicado ningún cambio.");
+  }
   try {
     const [row] = await db.update(categories).set(input).where(eq(categories.id, id)).returning();
     if (!row) throw ApiError.notFound("Categoría no encontrada.");

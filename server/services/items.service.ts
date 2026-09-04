@@ -119,6 +119,9 @@ export async function createItem(input: CreateItemInput) {
 }
 
 export async function updateItem(id: number, input: UpdateItemInput) {
+  if (Object.keys(input).length === 0) {
+    throw ApiError.badRequest("No has indicado ningún cambio.");
+  }
   try {
     const [row] = await db
       .update(items)

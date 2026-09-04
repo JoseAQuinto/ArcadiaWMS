@@ -127,6 +127,11 @@ export async function createLocation(input: CreateLocationInput) {
 }
 
 export async function updateLocation(id: number, input: UpdateLocationInput) {
+  // Every field is optional, so an empty payload would reach Drizzle as an
+  // UPDATE with no SET clause and blow up as a 500 instead of a clear 400.
+  if (Object.keys(input).length === 0) {
+    throw ApiError.badRequest("No has indicado ningún cambio.");
+  }
   const [row] = await db.update(locations).set(input).where(eq(locations.id, id)).returning();
   if (!row) throw ApiError.notFound("Ubicación no encontrada.");
   return row;
