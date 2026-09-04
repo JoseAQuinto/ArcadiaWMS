@@ -15,4 +15,4 @@
  * Keeping this file to a re-export means the routing logic sits in server/,
  * next to everything else it belongs with, and stays unit-testable.
  */
-export { router as default } from "../server/routes/router";
+export { router as default } from "../server/routes/router.js";

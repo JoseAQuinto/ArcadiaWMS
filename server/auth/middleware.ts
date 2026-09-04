@@ -1,6 +1,6 @@
 import type { VercelRequest } from "@vercel/node";
-import { verifyToken, type AuthTokenPayload, type UserRole } from "./jwt";
-import { ApiError } from "../utils/errors";
+import { verifyToken, type AuthTokenPayload, type UserRole } from "./jwt.js";
+import { ApiError } from "../utils/errors.js";
 
 export function getAuth(req: VercelRequest): AuthTokenPayload | null {
   const header = req.headers.authorization;

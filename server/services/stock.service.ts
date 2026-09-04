@@ -1,9 +1,9 @@
 import { and, desc, eq, gt, ilike, or, sql, type SQL } from "drizzle-orm";
-import { db, type Database, type Tx } from "../db";
-import { categories, items, locations, stock, warehouses, stockMovements } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { firstRow } from "../utils/db";
-import type { StockListQuery } from "../validators/stock";
+import { db, type Database, type Tx } from "../db/index.js";
+import { categories, items, locations, stock, warehouses, stockMovements } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { firstRow } from "../utils/db.js";
+import type { StockListQuery } from "../validators/stock.js";
 
 export interface NewMovementInput {
   type: "RECEIPT" | "OUTBOUND" | "TRANSFER" | "ADJUSTMENT_IN" | "ADJUSTMENT_OUT";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema } from "./common";
+import { paginationSchema } from "./common.js";
 
 export const outboundStatusEnum = z.enum(["PENDING", "PICKING", "COMPLETED", "CANCELLED"]);
 

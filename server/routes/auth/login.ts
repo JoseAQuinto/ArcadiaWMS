@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess } from "../../utils/http";
-import { loginSchema } from "../../validators/auth";
-import { login } from "../../services/auth.service";
+import { withHandler, requireMethod, sendSuccess } from "../../utils/http.js";
+import { loginSchema } from "../../validators/auth.js";
+import { login } from "../../services/auth.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse) => {
   requireMethod(req, "POST");

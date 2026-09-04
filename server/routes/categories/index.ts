@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess, flattenQuery } from "../../utils/http";
-import { requireAuth, requireRole } from "../../auth/middleware";
-import { createCategorySchema } from "../../validators/categories";
-import { listCategories, createCategory } from "../../services/categories.service";
+import { withHandler, requireMethod, sendSuccess, flattenQuery } from "../../utils/http.js";
+import { requireAuth, requireRole } from "../../auth/middleware.js";
+import { createCategorySchema } from "../../validators/categories.js";
+import { listCategories, createCategory } from "../../services/categories.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse) => {
   const auth = requireAuth(req);

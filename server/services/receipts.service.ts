@@ -1,17 +1,17 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
-import { db, type Database, type Tx } from "../db";
-import { items, receiptLines, receipts, users } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { firstRow } from "../utils/db";
-import { nextReceiptCode } from "../utils/codes";
-import { increaseStock, recordMovement } from "./stock.service";
-import { requireLocation } from "./locations.service";
+import { db, type Database, type Tx } from "../db/index.js";
+import { items, receiptLines, receipts, users } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { firstRow } from "../utils/db.js";
+import { nextReceiptCode } from "../utils/codes.js";
+import { increaseStock, recordMovement } from "./stock.service.js";
+import { requireLocation } from "./locations.service.js";
 import type {
   CreateReceiptInput,
   ReceiveLineInput,
   ReceiptListQuery,
   UpdateReceiptInput,
-} from "../validators/receipts";
+} from "../validators/receipts.js";
 
 type Executor = Database | Tx;
 

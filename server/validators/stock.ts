@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema, booleanQueryParam } from "./common";
+import { paginationSchema, booleanQueryParam } from "./common.js";
 
 export const stockListQuerySchema = paginationSchema.extend({
   itemId: z.coerce.number().int().positive().optional(),

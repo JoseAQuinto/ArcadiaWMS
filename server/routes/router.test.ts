@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchRoute, pathSegments, requestSegments } from "./router";
+import { matchRoute, pathSegments, requestSegments } from "./router.js";
 
 /**
  * The whole API is dispatched by this table, so a typo in a pattern would take

@@ -1,28 +1,28 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, type Handler, type RouteParams } from "../utils/http";
-import { ApiError } from "../utils/errors";
+import { withHandler, type Handler, type RouteParams } from "../utils/http.js";
+import { ApiError } from "../utils/errors.js";
 
-import authLogin from "./auth/login";
-import authMe from "./auth/me";
-import itemsList from "./items/index";
-import itemsDetail from "./items/detail";
-import categoriesList from "./categories/index";
-import categoriesDetail from "./categories/detail";
-import warehousesList from "./warehouses/index";
-import locationsList from "./locations/index";
-import locationsDetail from "./locations/detail";
-import stockList from "./stock/index";
-import stockByItem from "./stock/by-item";
-import receiptsList from "./receipts/index";
-import receiptsDetail from "./receipts/detail";
-import receiptsReceive from "./receipts/receive";
-import outboundList from "./outbound-orders/index";
-import outboundDetail from "./outbound-orders/detail";
-import outboundPick from "./outbound-orders/pick";
-import transfersCreate from "./transfers/index";
-import adjustmentsCreate from "./adjustments/index";
-import movementsList from "./movements/index";
-import dashboardSummary from "./dashboard/index";
+import authLogin from "./auth/login.js";
+import authMe from "./auth/me.js";
+import itemsList from "./items/index.js";
+import itemsDetail from "./items/detail.js";
+import categoriesList from "./categories/index.js";
+import categoriesDetail from "./categories/detail.js";
+import warehousesList from "./warehouses/index.js";
+import locationsList from "./locations/index.js";
+import locationsDetail from "./locations/detail.js";
+import stockList from "./stock/index.js";
+import stockByItem from "./stock/by-item.js";
+import receiptsList from "./receipts/index.js";
+import receiptsDetail from "./receipts/detail.js";
+import receiptsReceive from "./receipts/receive.js";
+import outboundList from "./outbound-orders/index.js";
+import outboundDetail from "./outbound-orders/detail.js";
+import outboundPick from "./outbound-orders/pick.js";
+import transfersCreate from "./transfers/index.js";
+import adjustmentsCreate from "./adjustments/index.js";
+import movementsList from "./movements/index.js";
+import dashboardSummary from "./dashboard/index.js";
 
 // -----------------------------------------------------------------------------
 // Single entry point for the whole API.

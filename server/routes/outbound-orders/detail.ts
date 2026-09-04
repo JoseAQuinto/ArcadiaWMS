@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess, parseIdParam, type RouteParams } from "../../utils/http";
-import { requireAuth, requireRole } from "../../auth/middleware";
-import { updateOutboundOrderSchema } from "../../validators/outbound";
-import { getOutboundOrderById, updateOutboundOrder } from "../../services/outbound.service";
+import { withHandler, requireMethod, sendSuccess, parseIdParam, type RouteParams } from "../../utils/http.js";
+import { requireAuth, requireRole } from "../../auth/middleware.js";
+import { updateOutboundOrderSchema } from "../../validators/outbound.js";
+import { getOutboundOrderById, updateOutboundOrder } from "../../services/outbound.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse, params: RouteParams) => {
   const auth = requireAuth(req);

@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess, flattenQuery } from "../../utils/http";
-import { requireAuth, requireRole } from "../../auth/middleware";
-import { createOutboundOrderSchema, outboundListQuerySchema } from "../../validators/outbound";
-import { listOutboundOrders, createOutboundOrder } from "../../services/outbound.service";
+import { withHandler, requireMethod, sendSuccess, flattenQuery } from "../../utils/http.js";
+import { requireAuth, requireRole } from "../../auth/middleware.js";
+import { createOutboundOrderSchema, outboundListQuerySchema } from "../../validators/outbound.js";
+import { listOutboundOrders, createOutboundOrder } from "../../services/outbound.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse) => {
   const auth = requireAuth(req);

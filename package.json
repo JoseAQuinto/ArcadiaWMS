@@ -10,13 +10,14 @@
   "scripts": {
     "dev": "vercel dev --listen 3000",
     "dev:vite": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/check-imports.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "hash-passwords": "tsx scripts/hash-passwords.ts"
+    "hash-passwords": "tsx scripts/hash-passwords.ts",
+    "check:imports": "node scripts/check-imports.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

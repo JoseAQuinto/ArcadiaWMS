@@ -1,8 +1,8 @@
 import { Pool, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
-import * as schema from "./schema";
-import { requireEnv } from "../utils/env";
+import * as schema from "./schema.js";
+import { requireEnv } from "../utils/env.js";
 
 // Node.js serverless functions don't have a native WebSocket global (unlike
 // the browser or the Edge runtime), so Neon's driver needs one injected to

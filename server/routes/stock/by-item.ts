@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess, parseIdParam, type RouteParams } from "../../utils/http";
-import { requireAuth } from "../../auth/middleware";
-import { getStockByItem } from "../../services/stock.service";
+import { withHandler, requireMethod, sendSuccess, parseIdParam, type RouteParams } from "../../utils/http.js";
+import { requireAuth } from "../../auth/middleware.js";
+import { getStockByItem } from "../../services/stock.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse, params: RouteParams) => {
   requireAuth(req);

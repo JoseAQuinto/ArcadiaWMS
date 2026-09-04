@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTransferSchema } from "./transfers";
+import { createTransferSchema } from "./transfers.js";
 
 describe("createTransferSchema", () => {
   it("accepts a valid transfer", () => {

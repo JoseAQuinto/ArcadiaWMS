@@ -1,9 +1,9 @@
 import { eq, gte, inArray, sql } from "drizzle-orm";
-import { db } from "../db";
-import { categories, items, locations, outboundOrders, receipts, stock, stockMovements } from "../db/schema";
-import { firstRow } from "../utils/db";
-import { computeLocationStatus } from "./locations.service";
-import { listMovements } from "./movements.service";
+import { db } from "../db/index.js";
+import { categories, items, locations, outboundOrders, receipts, stock, stockMovements } from "../db/schema.js";
+import { firstRow } from "../utils/db.js";
+import { computeLocationStatus } from "./locations.service.js";
+import { listMovements } from "./movements.service.js";
 
 function lastNDays(n: number): string[] {
   const days: string[] = [];

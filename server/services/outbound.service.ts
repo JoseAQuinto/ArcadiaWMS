@@ -1,17 +1,17 @@
 import { and, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
-import { db, type Database, type Tx } from "../db";
-import { items, outboundOrderLines, outboundOrders, users } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { firstRow } from "../utils/db";
-import { nextOutboundCode } from "../utils/codes";
-import { decreaseStock, recordMovement } from "./stock.service";
-import { requireLocation } from "./locations.service";
+import { db, type Database, type Tx } from "../db/index.js";
+import { items, outboundOrderLines, outboundOrders, users } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { firstRow } from "../utils/db.js";
+import { nextOutboundCode } from "../utils/codes.js";
+import { decreaseStock, recordMovement } from "./stock.service.js";
+import { requireLocation } from "./locations.service.js";
 import type {
   CreateOutboundOrderInput,
   OutboundListQuery,
   PickLineInput,
   UpdateOutboundOrderInput,
-} from "../validators/outbound";
+} from "../validators/outbound.js";
 
 type Executor = Database | Tx;
 

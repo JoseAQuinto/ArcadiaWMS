@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema } from "./common";
+import { paginationSchema } from "./common.js";
 
 export const movementTypeEnum = z.enum(["RECEIPT", "OUTBOUND", "TRANSFER", "ADJUSTMENT_IN", "ADJUSTMENT_OUT"]);
 

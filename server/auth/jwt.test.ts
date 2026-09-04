@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { signToken, verifyToken } from "./jwt";
+import { signToken, verifyToken } from "./jwt.js";
 
 describe("jwt", () => {
   it("round-trips a payload through sign and verify", () => {

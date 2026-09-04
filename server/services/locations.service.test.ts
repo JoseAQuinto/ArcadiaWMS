@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLocationStatus, computeOccupancyPercent } from "./locations.service";
+import { computeLocationStatus, computeOccupancyPercent } from "./locations.service.js";
 
 describe("computeLocationStatus", () => {
   it("is BLOCKED regardless of quantity when blocked is true", () => {

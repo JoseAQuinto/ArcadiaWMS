@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess } from "../../utils/http";
-import { requireAuth, requireRole } from "../../auth/middleware";
-import { createAdjustmentSchema } from "../../validators/adjustments";
-import { createAdjustment } from "../../services/movements.service";
+import { withHandler, requireMethod, sendSuccess } from "../../utils/http.js";
+import { requireAuth, requireRole } from "../../auth/middleware.js";
+import { createAdjustmentSchema } from "../../validators/adjustments.js";
+import { createAdjustment } from "../../services/movements.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse) => {
   const auth = requireAuth(req);

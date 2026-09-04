@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { paginationSchema, booleanQueryParam } from "./common";
+import { paginationSchema, booleanQueryParam } from "./common.js";
 
 export const createItemSchema = z.object({
   sku: z

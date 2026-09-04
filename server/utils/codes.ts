@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Database, Tx } from "../db";
+import type { Database, Tx } from "../db/index.js";
 
 async function nextFromSequence(executor: Database | Tx, sequence: string): Promise<number> {
   const result = await executor.execute(sql.raw(`SELECT nextval('${sequence}') AS value`));

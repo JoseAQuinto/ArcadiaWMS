@@ -1,4 +1,4 @@
-import { ApiError } from "./errors";
+import { ApiError } from "./errors.js";
 
 /** Postgres error code for a UNIQUE constraint violation. */
 const UNIQUE_VIOLATION = "23505";

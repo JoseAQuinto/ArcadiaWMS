@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mapUniqueViolation } from "./db-errors";
-import { ApiError } from "./errors";
+import { mapUniqueViolation } from "./db-errors.js";
+import { ApiError } from "./errors.js";
 
 /**
  * Drizzle changed the shape of driver errors between versions (0.44+ wraps them

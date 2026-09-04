@@ -1,10 +1,10 @@
 import { and, eq, ilike, sql, type SQL } from "drizzle-orm";
-import { db, type Database, type Tx } from "../db";
-import { items, locations, stock, warehouses } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { mapUniqueViolation } from "../utils/db-errors";
-import type { CreateLocationInput, LocationStatus, UpdateLocationInput } from "../validators/locations";
-import type { LocationListQuery } from "../validators/locations";
+import { db, type Database, type Tx } from "../db/index.js";
+import { items, locations, stock, warehouses } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { mapUniqueViolation } from "../utils/db-errors.js";
+import type { CreateLocationInput, LocationStatus, UpdateLocationInput } from "../validators/locations.js";
+import type { LocationListQuery } from "../validators/locations.js";
 
 type Executor = Database | Tx;
 

@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { requireEnv } from "../utils/env";
+import { requireEnv } from "../utils/env.js";
 
 export type UserRole = "ADMIN" | "OPERATOR";
 

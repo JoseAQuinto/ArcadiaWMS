@@ -92,6 +92,36 @@ leerlos de `req.query`.
 Si añades endpoints: van en `server/routes/` y se registran en la tabla del
 router. Nunca archivos nuevos dentro de `api/`.
 
+## El bug que impidió desplegar: imports ESM sin extensión
+
+Con el router ya en su sitio, la API seguía devolviendo 500
+(`FUNCTION_INVOCATION_FAILED`) en **todas** las rutas. El log de Vercel:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/var/task/server/routes/router'
+imported from /var/task/api/index.js
+```
+
+Vercel compila `api/` y `server/` a JavaScript y lo ejecuta como ESM (el proyecto
+es `"type": "module"`), y el resolvedor de Node **no adivina extensiones ni
+resuelve imports de directorio**. Todos los imports relativos del backend iban
+sin extensión (`from "../utils/http"`), que TypeScript acepta y Node rechaza. El
+archivo estaba ahí; Node simplemente no lo buscaba.
+
+Este bug era **anterior al refactor**: con las 21 funciones originales habría
+fallado exactamente igual. El proyecto nunca habría arrancado en Vercel.
+
+Corregido: 176 imports de 45 archivos llevan ahora `.js` explícito. Y como ni
+`tsc --noEmit` ni vitest lo detectan (cada uno resuelve a su manera), se añadió
+`scripts/check-imports.mjs`, que `npm run build` ejecuta **antes** de compilar:
+si un import relativo no lleva `.js` o apunta a un archivo inexistente, el build
+falla con el archivo y la línea exactos en vez de desplegar una función muerta.
+
+Verificación del arreglo, reproduciendo el entorno de Vercel: se compiló el
+backend a JS con `tsc` (que preserva los especificadores tal cual, igual que
+Vercel), se importó bajo Node ESM y se sirvió **el JavaScript compilado** —no el
+TypeScript— para pasarle la batería completa: 128/128.
+
 ## Verificado contra Neon real
 
 Tras el refactor, la cadena completa se probó contra el Neon de producción

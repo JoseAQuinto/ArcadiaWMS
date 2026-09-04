@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { withHandler, requireMethod, sendSuccess } from "../../utils/http";
-import { requireAuth } from "../../auth/middleware";
-import { getDashboardSummary } from "../../services/dashboard.service";
+import { withHandler, requireMethod, sendSuccess } from "../../utils/http.js";
+import { requireAuth } from "../../auth/middleware.js";
+import { getDashboardSummary } from "../../services/dashboard.service.js";
 
 export default withHandler(async (req: VercelRequest, res: VercelResponse) => {
   requireAuth(req);

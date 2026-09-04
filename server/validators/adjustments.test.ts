@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAdjustmentSchema } from "./adjustments";
+import { createAdjustmentSchema } from "./adjustments.js";
 
 describe("createAdjustmentSchema", () => {
   it("accepts a valid decrement adjustment", () => {

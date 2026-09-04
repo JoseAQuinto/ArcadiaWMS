@@ -163,13 +163,16 @@ Si prefieres iterar solo en el frontend sin las funciones serverless, `npm run d
 Otros comandos:
 
 ```bash
-npm run build       # tsc --noEmit + build de producción de Vite
+npm run build       # check:imports + tsc --noEmit + build de producción de Vite
+npm run check:imports # verifica que los imports del backend funcionarán en Vercel
 npm run typecheck   # solo comprobación de tipos
 npm run lint         # ESLint
 npm run test         # vitest (lógica de negocio sensible)
 ```
 
 El proyecto fija `engines.node` a **22.x** (Node 20 queda deprecado en Vercel el 1 de octubre de 2026).
+
+> **Imports del backend: la extensión `.js` es obligatoria.** Vercel compila `api/` y `server/` a JavaScript y lo ejecuta como ESM, y el resolvedor de Node **no adivina extensiones ni resuelve imports de directorio**. Un `from "../utils/http"` compila sin problema con TypeScript y luego revienta en producción con `ERR_MODULE_NOT_FOUND`, tumbando la función entera. Por eso todos los imports relativos de `api/` y `server/` llevan `.js` explícito (`from "../utils/http.js"`, `from "../db/index.js"`), apuntando al archivo `.ts` correspondiente. `npm run build` lo comprueba antes de compilar, porque ni `tsc --noEmit` ni vitest detectan el problema: cada uno resuelve los imports a su manera.
 
 ## Demo users
 

@@ -1,9 +1,9 @@
 import { eq, or } from "drizzle-orm";
-import { db } from "../db";
-import { users } from "../db/schema";
-import { hashPassword as _hashPassword, verifyPassword } from "../auth/password";
-import { signToken } from "../auth/jwt";
-import { ApiError } from "../utils/errors";
+import { db } from "../db/index.js";
+import { users } from "../db/schema.js";
+import { hashPassword as _hashPassword, verifyPassword } from "../auth/password.js";
+import { signToken } from "../auth/jwt.js";
+import { ApiError } from "../utils/errors.js";
 
 // Re-exported for the one-off scripts/hash-passwords.ts helper script.
 export const hashPassword = _hashPassword;

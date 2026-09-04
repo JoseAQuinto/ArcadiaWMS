@@ -1,14 +1,14 @@
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from "drizzle-orm";
-import { db } from "../db";
-import { items, locations, stockMovements, users } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { firstRow } from "../utils/db";
-import { decreaseStock, increaseStock, recordMovement } from "./stock.service";
-import { requireActiveItem } from "./items.service";
-import { requireLocation } from "./locations.service";
-import type { CreateTransferInput } from "../validators/transfers";
-import type { CreateAdjustmentInput } from "../validators/adjustments";
-import type { MovementListQuery } from "../validators/movements";
+import { db } from "../db/index.js";
+import { items, locations, stockMovements, users } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { firstRow } from "../utils/db.js";
+import { decreaseStock, increaseStock, recordMovement } from "./stock.service.js";
+import { requireActiveItem } from "./items.service.js";
+import { requireLocation } from "./locations.service.js";
+import type { CreateTransferInput } from "../validators/transfers.js";
+import type { CreateAdjustmentInput } from "../validators/adjustments.js";
+import type { MovementListQuery } from "../validators/movements.js";
 
 export async function createTransfer(input: CreateTransferInput, userId: number) {
   return db.transaction(async (tx) => {

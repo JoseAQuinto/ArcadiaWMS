@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import { db } from "../db";
-import { categories } from "../db/schema";
-import { ApiError } from "../utils/errors";
-import { mapUniqueViolation } from "../utils/db-errors";
-import type { CreateCategoryInput, UpdateCategoryInput } from "../validators/categories";
+import { db } from "../db/index.js";
+import { categories } from "../db/schema.js";
+import { ApiError } from "../utils/errors.js";
+import { mapUniqueViolation } from "../utils/db-errors.js";
+import type { CreateCategoryInput, UpdateCategoryInput } from "../validators/categories.js";
 
 export async function listCategories(includeInactive = false) {
   const whereClause = includeInactive ? undefined : eq(categories.active, true);

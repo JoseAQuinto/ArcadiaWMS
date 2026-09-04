@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ZodError } from "zod";
-import { ApiError } from "./errors";
+import { ApiError } from "./errors.js";
 
 /** Path parameters captured by the router in api/[...path].ts (e.g. { id: "42" }). */
 export type RouteParams = Record<string, string | undefined>;
