@@ -51,10 +51,13 @@ _Pendiente: añadir capturas del dashboard, ubicaciones, recepción y histórico
 React + TypeScript (Vite)
         │  fetch a rutas relativas /api/*
         ▼
-REST API propia (api/*.ts)
-        │  llama a
+api/[...path].ts        (única Vercel Function: catch-all)
+        │  despacha con la tabla de rutas de
         ▼
-server/services/*.ts  (lógica de negocio, transacciones)
+server/routes/*.ts      (handlers HTTP finos)
+        │  llaman a
+        ▼
+server/services/*.ts    (lógica de negocio, transacciones)
         │  usa
         ▼
 Drizzle ORM  (server/db/schema.ts)
@@ -64,8 +67,10 @@ Neon PostgreSQL
 ```
 
 - El frontend **nunca** habla directamente con Neon. Todo pasa por `/api/*`.
-- Frontend y API se despliegan **en el mismo proyecto de Vercel**: el frontend es un build estático de Vite y cada archivo bajo `api/` se convierte automáticamente en una Vercel Function con el runtime Node.js oficial.
-- Cada función es un handler HTTP delgado (`api/**/*.ts`): valida método y query/params, delega en `server/services/*.ts` para la lógica de negocio y usa `server/utils/http.ts` para dar una respuesta consistente.
+- Frontend y API se despliegan **en el mismo proyecto de Vercel**: el frontend es un build estático de Vite y `api/[...path].ts` se despliega como Vercel Function con el runtime Node.js oficial.
+- **Una sola función para toda la API.** Vercel convierte cada archivo bajo `api/` en su propia Serverless Function, y el plan Hobby limita un proyecto que no sea Next.js/SvelteKit a **12 funciones por despliegue**; esta API tiene 21 rutas. Por eso los handlers viven en `server/routes/` (fuera de `api/`, donde Vercel no los ve) y un único catch-all los despacha con una tabla de rutas explícita. Como efecto secundario deseable, hay una sola instancia caliente y **un solo pool de conexiones a Neon** en lugar de 21.
+- Cada handler (`server/routes/**/*.ts`) es delgado: valida método y query/params, delega en `server/services/*.ts` para la lógica de negocio y usa `server/utils/http.ts` para dar una respuesta consistente. El router les pasa los parámetros de ruta (`:id`) como tercer argumento.
+- La tabla de rutas de `server/routes/router.ts` **es** la superficie de la API, legible de un vistazo, y está cubierta por tests unitarios.
 - La conexión a Neon usa `@neondatabase/serverless` (`Pool` sobre WebSocket) + `drizzle-orm/neon-serverless`, centralizada en `server/db/index.ts`. Esto permite transacciones interactivas reales (`db.transaction`) en un entorno serverless, y el pool se reutiliza entre invocaciones cuando la instancia de la función sigue "caliente".
 - **Integridad de stock**: toda operación que cambia stock (recepción, picking, transferencia, regularización) ocurre dentro de una transacción de PostgreSQL, con dos niveles de bloqueo:
   - la resta de stock hace `SELECT ... FOR UPDATE` sobre la fila de `stock` antes de comprobar y descontar, así que dos peticiones concurrentes nunca pueden dejar stock negativo;
@@ -75,21 +80,23 @@ Neon PostgreSQL
 
 ```
 ArcadiaWMS/
-├── api/                    # Vercel Functions (handlers HTTP finos)
-│   ├── auth/                  login, me
-│   ├── items/                 CRUD de artículos
-│   ├── categories/            CRUD de categorías
-│   ├── warehouses/            listado de almacenes
-│   ├── locations/              CRUD de ubicaciones
-│   ├── stock/                  consulta de stock
-│   ├── receipts/                recepciones + recibir línea
-│   ├── outbound-orders/         salidas + preparar línea
-│   ├── transfers/                transferencias
-│   ├── adjustments/              regularizaciones
-│   ├── movements/                histórico
-│   └── dashboard/                resumen del dashboard
+├── api/
+│   └── [...path].ts        # La única Vercel Function: reexporta el router
 │
 ├── server/                  # Lógica de negocio y acceso a datos
+│   ├── routes/                 router.ts (tabla de rutas) + un handler por endpoint
+│   │   ├── auth/                  login, me
+│   │   ├── items/                 listado + detalle/edición
+│   │   ├── categories/            listado + edición
+│   │   ├── warehouses/            listado de almacenes
+│   │   ├── locations/             listado + detalle/edición
+│   │   ├── stock/                 consulta de stock y stock por artículo
+│   │   ├── receipts/              recepciones + recibir línea
+│   │   ├── outbound-orders/       salidas + preparar línea
+│   │   ├── transfers/             transferencias
+│   │   ├── adjustments/           regularizaciones
+│   │   ├── movements/             histórico
+│   │   └── dashboard/             resumen del dashboard
 │   ├── db/                     schema.ts (Drizzle) + index.ts (conexión Neon)
 │   ├── auth/                   jwt.ts, password.ts, middleware.ts
 │   ├── services/                un archivo por dominio (items, stock, receipts…)
@@ -180,7 +187,8 @@ Puedes iniciar sesión con el **usuario o el email** (`admin@arcadiawms.com` / `
 1. Sube este repositorio a GitHub (ya está conectado a `https://github.com/JoseAQuinto/ArcadiaWMS`).
 2. En [vercel.com](https://vercel.com), **Add New Project** → importa el repositorio. Vercel detecta Vite automáticamente.
 3. En **Project Settings → Environment Variables**, añade `DATABASE_URL` y `JWT_SECRET` (los mismos valores que en tu `.env`, o unos de producción independientes).
-4. Despliega. El frontend se sirve como estático desde `dist/` y cada archivo de `api/` se despliega como una Vercel Function (Node.js runtime).
+4. Despliega. El frontend se sirve como estático desde `dist/` y `api/[...path].ts` se despliega como una única Vercel Function (Node.js runtime) que atiende toda la API.
+   - Si añades endpoints, hazlo en `server/routes/` y regístralos en la tabla de `server/routes/router.ts`. **No** crees archivos nuevos dentro de `api/`: cada uno sería una función más y el plan Hobby corta en 12.
 5. Verifica que `database/schema.sql` ya se ejecutó contra tu base de Neon de producción antes de probar el login.
 
 ## Security notes

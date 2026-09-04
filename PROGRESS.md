@@ -10,8 +10,8 @@ Estado de las comprobaciones:
 
 - `npm run build` (tsc estricto + Vite): **OK**.
 - `npx eslint .`: **0 errores**, 4 warnings de `react-refresh/only-export-components` en los contexts (patrón aceptado a propósito).
-- `npx vitest run`: **23 tests OK** (6 archivos).
-- Batería E2E contra Postgres 16 real + la API real servida como Vercel Functions: **128 comprobaciones OK, 0 fallos**.
+- `npx vitest run`: **63 tests OK** (7 archivos).
+- Batería E2E contra Neon real (y antes contra Postgres 16 local), a través del router de producción: **128 comprobaciones OK, 0 fallos**.
 - Prueba de concurrencia (10–12 peticiones simultáneas): **OK**, sin duplicados y sin stock negativo.
 - `database/schema.sql` y `server/db/schema.ts`: **paridad verificada automáticamente** (mismos CHECK con los mismos nombres, mismos índices, mismas columnas/tipos/defaults).
 
@@ -65,11 +65,46 @@ Lo que se probó de verdad, no "por inspección":
 - **Concurrencia**: 10 recepciones simultáneas sobre una línea de 4 → 4 aplicadas; 10 picks simultáneos sobre una línea de 3 → 3 aplicados; 12 salidas simultáneas contra 6 uds de stock → 6 OK, 6 rechazadas con 409, stock final 0 y nunca negativo.
 - **Navegador real** (1440×900, tablet 768×1024, móvil 375×812): login, dashboard, stock (indicador y filtro "bajo mínimo"), transferencia completa con comprobación de que el stock y "Últimas transferencias" se actualizan al instante, recepción parcial con **doble clic real** en "Confirmar recepción" (un solo movimiento en BD), histórico, mapa de ubicaciones, rol OPERATOR (sin "Configuración" ni botones de maestros, y `/settings` redirige), **drawer móvil** (abre, cierra con Escape, bloquea scroll, se cierra al navegar) y **cierre de sesión automático** al invalidar el token.
 
+## Despliegue: una sola función para toda la API
+
+Al desplegar por primera vez en Vercel, el build compilaba bien pero fallaba en
+`Deploying outputs`. Causa: **Vercel convierte cada archivo bajo `api/` en su
+propia Serverless Function, y el plan Hobby limita a 12 por despliegue** en
+proyectos que no son Next.js/SvelteKit. Esta API tenía 21 rutas.
+
+Solución adoptada: los handlers se movieron a `server/routes/` (fuera de `api/`,
+donde Vercel no los ve) y `api/[...path].ts` quedó como único punto de entrada,
+despachando con la tabla de rutas explícita de `server/routes/router.ts`. Como
+efecto secundario deseable, ahora hay una sola instancia caliente y un solo pool
+de conexiones a Neon en lugar de 21.
+
+La lógica de negocio (`server/services/`) no se tocó. Los handlers solo cambiaron
+en que reciben los parámetros de ruta (`:id`) como tercer argumento en vez de
+leerlos de `req.query`.
+
+Si añades endpoints: van en `server/routes/` y se registran en la tabla del
+router. Nunca archivos nuevos dentro de `api/`.
+
+## Verificado contra Neon real
+
+Tras el refactor, la cadena completa se probó contra el Neon de producción
+(PostgreSQL 18.6, endpoint pooled, ~300 ms de latencia desde local):
+
+- Conexión con `@neondatabase/serverless` sobre WebSocket, transacciones
+  interactivas con `BEGIN` + `SELECT ... FOR UPDATE`, `ROLLBACK` deshaciendo el
+  cambio y el CHECK de la base rechazando stock negativo (23514).
+- Batería E2E completa a través del router: **128 comprobaciones, 0 fallos**.
+- Concurrencia: 10 picks simultáneos sobre una línea de 3 → 3 aplicados, 3
+  movimientos, stock -3; 10 recepciones simultáneas sobre una línea de 4 → 4
+  aplicadas; 12 salidas simultáneas sobre 6 uds → 6 OK, 6 rechazadas con 409,
+  stock final 0 y nunca negativo.
+- Datos demo restaurados después reejecutando `database/schema.sql`.
+
 ## Lo que queda
 
-1. **Desplegar contra un Neon real** y repetir una pasada rápida. Los flujos están probados contra Postgres 16 real; falta confirmar que Neon en concreto (pooling sobre WebSocket, latencia) no cambia nada. Es lo único no verificado de la cadena.
-2. **URL de demo pública** en Vercel + **capturas para el README**.
-3. Decidir si la capacidad de ubicación debe aplicarse de verdad (hoy es informativa; ver *Pending / known limitations* en el README).
+1. **URL de demo pública** en Vercel + **capturas para el README**.
+2. Decidir si la capacidad de ubicación debe aplicarse de verdad (hoy es
+   informativa; ver *Pending / known limitations* en el README).
 
 ## Decisiones de diseño ya tomadas (no las reabras sin razón)
 

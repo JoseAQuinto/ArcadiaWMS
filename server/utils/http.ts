@@ -2,7 +2,14 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ZodError } from "zod";
 import { ApiError } from "./errors";
 
-export type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void> | void;
+/** Path parameters captured by the router in api/[...path].ts (e.g. { id: "42" }). */
+export type RouteParams = Record<string, string | undefined>;
+
+export type Handler = (
+  req: VercelRequest,
+  res: VercelResponse,
+  params: RouteParams
+) => Promise<void> | void;
 
 /**
  * Wraps a Vercel function handler so every route gets the same
@@ -10,9 +17,9 @@ export type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>
  * consistent HTTP status codes, without repeating try/catch in every file.
  */
 export function withHandler(handler: Handler): Handler {
-  return async (req, res) => {
+  return async (req, res, params) => {
     try {
-      await handler(req, res);
+      await handler(req, res, params);
     } catch (error) {
       handleError(res, error);
     }
