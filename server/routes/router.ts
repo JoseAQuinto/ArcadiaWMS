@@ -102,15 +102,27 @@ export function matchRoute(segments: string[]): { handler: Handler; params: Rout
 /** Splits "/api/receipts/4/receive?x=1" into ["receipts", "4", "receive"]. */
 export function pathSegments(url: string | undefined): string[] {
   const pathname = (url ?? "/").split("?")[0] ?? "/";
-  return pathname
-    .replace(/^\/+api\/?/, "")
-    .split("/")
-    .filter(Boolean)
-    .map(decodeURIComponent);
+  return toSegments(pathname.replace(/^\/+api\/?/, ""));
+}
+
+function toSegments(rawPath: string): string[] {
+  return rawPath.split("/").filter(Boolean).map(decodeURIComponent);
+}
+
+/**
+ * vercel.json rewrites /api/<path> to /api?path=<path>, so in production the
+ * route arrives in the query string. Falling back to the URL keeps the router
+ * working when it is mounted directly (local dev server, tests).
+ */
+export function requestSegments(req: Pick<VercelRequest, "query" | "url">): string[] {
+  const fromQuery = req.query?.path;
+  const raw = Array.isArray(fromQuery) ? fromQuery[0] : fromQuery;
+  if (raw) return toSegments(raw);
+  return pathSegments(req.url);
 }
 
 export const router = withHandler(async (req: VercelRequest, res: VercelResponse) => {
-  const match = matchRoute(pathSegments(req.url));
+  const match = matchRoute(requestSegments(req));
   if (!match) {
     throw ApiError.notFound("Endpoint no encontrado.");
   }

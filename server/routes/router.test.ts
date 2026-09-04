@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchRoute, pathSegments } from "./router";
+import { matchRoute, pathSegments, requestSegments } from "./router";
 
 /**
  * The whole API is dispatched by this table, so a typo in a pattern would take
@@ -83,5 +83,34 @@ describe("matchRoute", () => {
     for (const segments of [["items"], ["items", "1"], ["dashboard"], ["receipts", "1", "receive"]]) {
       expect(typeof matchRoute(segments)?.handler).toBe("function");
     }
+  });
+});
+
+describe("requestSegments", () => {
+  // In production vercel.json rewrites /api/<path> to /api?path=<path>, so the
+  // route arrives in the query string, not in the URL.
+  it.each([
+    ["items", ["items"]],
+    ["auth/login", ["auth", "login"]],
+    ["receipts/4/receive", ["receipts", "4", "receive"]],
+    ["outbound-orders/12/pick", ["outbound-orders", "12", "pick"]],
+    ["stock/item/7", ["stock", "item", "7"]],
+  ])("reads the rewritten path %j from the query string", (raw, expected) => {
+    expect(requestSegments({ query: { path: raw }, url: "/api" })).toEqual(expected);
+  });
+
+  it("takes the first value when the query param repeats", () => {
+    expect(requestSegments({ query: { path: ["items", "other"] }, url: "/api" })).toEqual(["items"]);
+  });
+
+  it("falls back to the URL when there is no rewrite (local dev, tests)", () => {
+    expect(requestSegments({ query: {}, url: "/api/receipts/4/receive" })).toEqual(["receipts", "4", "receive"]);
+  });
+
+  it("resolves to a real route through either path", () => {
+    const viaRewrite = matchRoute(requestSegments({ query: { path: "receipts/4/receive" }, url: "/api" }));
+    const viaUrl = matchRoute(requestSegments({ query: {}, url: "/api/receipts/4/receive" }));
+    expect(viaRewrite?.handler).toBe(viaUrl?.handler);
+    expect(viaRewrite?.params).toEqual({ id: "4" });
   });
 });

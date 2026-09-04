@@ -68,7 +68,8 @@ Neon PostgreSQL
 
 - El frontend **nunca** habla directamente con Neon. Todo pasa por `/api/*`.
 - Frontend y API se despliegan **en el mismo proyecto de Vercel**: el frontend es un build estático de Vite y `api/[...path].ts` se despliega como Vercel Function con el runtime Node.js oficial.
-- **Una sola función para toda la API.** Vercel convierte cada archivo bajo `api/` en su propia Serverless Function, y el plan Hobby limita un proyecto que no sea Next.js/SvelteKit a **12 funciones por despliegue**; esta API tiene 21 rutas. Por eso los handlers viven en `server/routes/` (fuera de `api/`, donde Vercel no los ve) y un único catch-all los despacha con una tabla de rutas explícita. Como efecto secundario deseable, hay una sola instancia caliente y **un solo pool de conexiones a Neon** en lugar de 21.
+- **Una sola función para toda la API.** Vercel convierte cada archivo bajo `api/` en su propia Serverless Function, y el plan Hobby limita un proyecto que no sea Next.js/SvelteKit a **12 funciones por despliegue**; esta API tiene 21 rutas. Por eso los handlers viven en `server/routes/` (fuera de `api/`, donde Vercel no los ve) y un único `api/index.ts` los despacha con una tabla de rutas explícita. Como efecto secundario deseable, hay una sola instancia caliente y **un solo pool de conexiones a Neon** en lugar de 21.
+- El enrutado hacia esa función se hace con un **rewrite explícito** en `vercel.json` (`/api/(.*)` → `/api?path=$1`), no con un nombre de archivo catch-all `[...path].ts`: en la práctica el catch-all solo capturaba un segmento, así que `/api/auth/login` ni llegaba a la función. El rewrite es inequívoco e independiente del framework.
 - Cada handler (`server/routes/**/*.ts`) es delgado: valida método y query/params, delega en `server/services/*.ts` para la lógica de negocio y usa `server/utils/http.ts` para dar una respuesta consistente. El router les pasa los parámetros de ruta (`:id`) como tercer argumento.
 - La tabla de rutas de `server/routes/router.ts` **es** la superficie de la API, legible de un vistazo, y está cubierta por tests unitarios.
 - La conexión a Neon usa `@neondatabase/serverless` (`Pool` sobre WebSocket) + `drizzle-orm/neon-serverless`, centralizada en `server/db/index.ts`. Esto permite transacciones interactivas reales (`db.transaction`) en un entorno serverless, y el pool se reutiliza entre invocaciones cuando la instancia de la función sigue "caliente".
@@ -81,7 +82,7 @@ Neon PostgreSQL
 ```
 ArcadiaWMS/
 ├── api/
-│   └── [...path].ts        # La única Vercel Function: reexporta el router
+│   └── index.ts            # La única Vercel Function: reexporta el router
 │
 ├── server/                  # Lógica de negocio y acceso a datos
 │   ├── routes/                 router.ts (tabla de rutas) + un handler por endpoint

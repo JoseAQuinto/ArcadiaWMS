@@ -73,10 +73,17 @@ propia Serverless Function, y el plan Hobby limita a 12 por despliegue** en
 proyectos que no son Next.js/SvelteKit. Esta API tenía 21 rutas.
 
 Solución adoptada: los handlers se movieron a `server/routes/` (fuera de `api/`,
-donde Vercel no los ve) y `api/[...path].ts` quedó como único punto de entrada,
+donde Vercel no los ve) y `api/index.ts` quedó como único punto de entrada,
 despachando con la tabla de rutas explícita de `server/routes/router.ts`. Como
 efecto secundario deseable, ahora hay una sola instancia caliente y un solo pool
 de conexiones a Neon en lugar de 21.
+
+El primer intento usó un archivo catch-all `api/[...path].ts`. **No funcionó**:
+Vercel lo trató como ruta dinámica de un solo segmento, así que `/api/items`
+llegaba a la función pero `/api/auth/login` devolvía 404 sin rozarla. La versión
+que funciona usa un rewrite explícito en `vercel.json`
+(`/api/(.*)` → `/api?path=$1`) y el router lee la ruta del query string, con
+respaldo a `req.url` para el servidor local y los tests.
 
 La lógica de negocio (`server/services/`) no se tocó. Los handlers solo cambiaron
 en que reciben los parámetros de ruta (`:id`) como tercer argumento en vez de
