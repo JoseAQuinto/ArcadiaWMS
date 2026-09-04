@@ -121,23 +121,35 @@ export async function createOutboundOrder(input: CreateOutboundOrderInput, userI
 }
 
 export async function updateOutboundOrder(id: number, input: UpdateOutboundOrderInput) {
-  if (input.status === "COMPLETED") {
-    throw ApiError.badRequest("El estado COMPLETED se asigna automáticamente al preparar todas las líneas.");
+  // PENDING/PICKING/COMPLETED are derived from the picked quantities on the
+  // lines, so the only status a client may set by hand is CANCELLED.
+  if (input.status && input.status !== "CANCELLED") {
+    throw ApiError.badRequest("El estado del pedido se calcula automáticamente a partir de sus líneas.");
   }
 
-  const [row] = await db
-    .update(outboundOrders)
-    .set({ ...input, updatedAt: new Date() })
-    .where(eq(outboundOrders.id, id))
-    .returning();
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(outboundOrders).where(eq(outboundOrders.id, id)).limit(1).for("update");
+    if (!current) throw ApiError.notFound("Pedido de salida no encontrado.");
+    if (current.status === "COMPLETED" || current.status === "CANCELLED") {
+      throw ApiError.badRequest("Este pedido ya está cerrado y no admite cambios.");
+    }
 
-  if (!row) throw ApiError.notFound("Pedido de salida no encontrado.");
-  return getOutboundOrderById(id);
+    await tx
+      .update(outboundOrders)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(outboundOrders.id, id));
+
+    return getOutboundOrderById(id, tx);
+  });
 }
 
 export async function pickLine(orderId: number, input: PickLineInput, userId: number) {
   return db.transaction(async (tx) => {
-    const [order] = await tx.select().from(outboundOrders).where(eq(outboundOrders.id, orderId)).limit(1);
+    // FOR UPDATE serialises every concurrent operation on the same order.
+    // Without it two requests fired at once (a double-clicked button, a retried
+    // POST) both read the same pickedQuantity, both remove stock, and the order
+    // ends up counting only one of them — stock silently disappears.
+    const [order] = await tx.select().from(outboundOrders).where(eq(outboundOrders.id, orderId)).limit(1).for("update");
     if (!order) throw ApiError.notFound("Pedido de salida no encontrado.");
     if (order.status === "COMPLETED" || order.status === "CANCELLED") {
       throw ApiError.badRequest("Este pedido ya está cerrado y no admite más preparación.");

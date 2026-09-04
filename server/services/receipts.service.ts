@@ -122,23 +122,35 @@ export async function createReceipt(input: CreateReceiptInput, userId: number) {
 }
 
 export async function updateReceipt(id: number, input: UpdateReceiptInput) {
-  if (input.status === "COMPLETED") {
-    throw ApiError.badRequest("El estado COMPLETED se asigna automáticamente al recibir todas las líneas.");
+  // PENDING/RECEIVING/COMPLETED are derived from the received quantities on the
+  // lines, so the only status a client may set by hand is CANCELLED.
+  if (input.status && input.status !== "CANCELLED") {
+    throw ApiError.badRequest("El estado de la recepción se calcula automáticamente a partir de sus líneas.");
   }
 
-  const [row] = await db
-    .update(receipts)
-    .set({ ...input, updatedAt: new Date() })
-    .where(eq(receipts.id, id))
-    .returning();
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(receipts).where(eq(receipts.id, id)).limit(1).for("update");
+    if (!current) throw ApiError.notFound("Recepción no encontrada.");
+    if (current.status === "COMPLETED" || current.status === "CANCELLED") {
+      throw ApiError.badRequest("Esta recepción ya está cerrada y no admite cambios.");
+    }
 
-  if (!row) throw ApiError.notFound("Recepción no encontrada.");
-  return getReceiptById(id);
+    await tx
+      .update(receipts)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(receipts.id, id));
+
+    return getReceiptById(id, tx);
+  });
 }
 
 export async function receiveLine(receiptId: number, input: ReceiveLineInput, userId: number) {
   return db.transaction(async (tx) => {
-    const [receipt] = await tx.select().from(receipts).where(eq(receipts.id, receiptId)).limit(1);
+    // FOR UPDATE serialises every concurrent operation on the same receipt.
+    // Without it two requests fired at once (a double-clicked button, a retried
+    // POST) both read the same receivedQuantity, both add stock, and the line
+    // ends up counting only one of them.
+    const [receipt] = await tx.select().from(receipts).where(eq(receipts.id, receiptId)).limit(1).for("update");
     if (!receipt) throw ApiError.notFound("Recepción no encontrada.");
     if (receipt.status === "COMPLETED" || receipt.status === "CANCELLED") {
       throw ApiError.badRequest("Esta recepción ya está cerrada y no admite más entradas.");
