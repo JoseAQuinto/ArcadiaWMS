@@ -4,8 +4,8 @@ Un Warehouse Management System (WMS) moderno para PYMEs: entradas, salidas, movi
 
 ## Demo
 
-- URL de producción: _pendiente de desplegar (ver sección Deployment on Vercel)_
-- Usuarios de demostración: ver [Demo users](#demo-users)
+- **URL de producción: [arcadia-wms.vercel.app](https://arcadia-wms.vercel.app)**
+- Usuarios de demostración: ver [Demo users](#demo-users) — los botones de la pantalla de login rellenan las credenciales.
 
 ## Screenshots
 

@@ -137,10 +137,33 @@ Tras el refactor, la cadena completa se probó contra el Neon de producción
   stock final 0 y nunca negativo.
 - Datos demo restaurados después reejecutando `database/schema.sql`.
 
+## Verificado contra producción (arcadia-wms.vercel.app)
+
+Con el despliegue en verde, la batería completa se lanzó contra la **URL pública
+real**, no contra local:
+
+- **127 de 128 comprobaciones OK.** La única discrepancia no es un fallo: el
+  token JWT con `alg: none` recibe **403 del firewall de Vercel** (texto plano,
+  sin el envoltorio JSON de la aplicación) en vez del 401 de la API, porque el
+  edge reconoce el patrón y lo corta antes de llegar a la función. Los demás
+  tokens inválidos (basura, firma alterada) sí llegan y reciben el 401 correcto.
+  El ataque queda bloqueado antes y mejor que en local.
+- **Concurrencia en producción**: 10 preparaciones simultáneas sobre una línea de
+  3 → 3 aplicadas, 3 movimientos, stock −3 exacto; 12 salidas simultáneas sobre
+  6 uds → 6 OK y 6 rechazadas con 409, stock final 0.
+- **Invariantes**: 0 filas con stock negativo, 0 descuadres entre el stock y el
+  histórico de movimientos.
+- Interfaz comprobada en el navegador contra la URL pública: login, dashboard con
+  datos y gráficos reales.
+- Datos demo restaurados después.
+
 ## Lo que queda
 
-1. **URL de demo pública** en Vercel + **capturas para el README**.
-2. Decidir si la capacidad de ubicación debe aplicarse de verdad (hoy es
+1. **Región de las funciones en `fra1`** (Frankfurt). Ahora corren en `iad1`
+   (Washington) mientras Neon está en Frankfurt, así que cada consulta cruza el
+   Atlántico. Se cambia en Settings → Functions y requiere un redespliegue.
+2. **Capturas para el README**.
+3. Decidir si la capacidad de ubicación debe aplicarse de verdad (hoy es
    informativa; ver *Pending / known limitations* en el README).
 
 ## Decisiones de diseño ya tomadas (no las reabras sin razón)
