@@ -113,7 +113,7 @@ CREATE TABLE items (
   description     TEXT,
   category_id     INTEGER REFERENCES categories(id) ON DELETE SET NULL,
   unit            VARCHAR(20) NOT NULL DEFAULT 'UD',
-  minimum_stock   INTEGER NOT NULL DEFAULT 0 CHECK (minimum_stock >= 0),
+  minimum_stock   INTEGER NOT NULL DEFAULT 0 CONSTRAINT items_minimum_stock_check CHECK (minimum_stock >= 0),
   active          BOOLEAN NOT NULL DEFAULT TRUE,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -124,7 +124,7 @@ CREATE TABLE locations (
   warehouse_id  INTEGER NOT NULL REFERENCES warehouses(id) ON DELETE RESTRICT,
   code          VARCHAR(30) NOT NULL,
   zone          VARCHAR(20) NOT NULL,
-  capacity      INTEGER CHECK (capacity IS NULL OR capacity > 0),
+  capacity      INTEGER CONSTRAINT locations_capacity_check CHECK (capacity IS NULL OR capacity > 0),
   blocked       BOOLEAN NOT NULL DEFAULT FALSE,
   active        BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -138,7 +138,7 @@ CREATE TABLE stock (
   id          SERIAL PRIMARY KEY,
   item_id     INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
   location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE RESTRICT,
-  quantity    INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  quantity    INTEGER NOT NULL DEFAULT 0 CONSTRAINT stock_quantity_check CHECK (quantity >= 0),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (item_id, location_id)
 );
@@ -160,10 +160,10 @@ CREATE TABLE receipt_lines (
   id                 SERIAL PRIMARY KEY,
   receipt_id         INTEGER NOT NULL REFERENCES receipts(id) ON DELETE CASCADE,
   item_id            INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
-  expected_quantity  INTEGER NOT NULL CHECK (expected_quantity >= 0),
-  received_quantity  INTEGER NOT NULL DEFAULT 0 CHECK (received_quantity >= 0),
+  expected_quantity  INTEGER NOT NULL CONSTRAINT receipt_lines_expected_check CHECK (expected_quantity >= 0),
+  received_quantity  INTEGER NOT NULL DEFAULT 0 CONSTRAINT receipt_lines_received_check CHECK (received_quantity >= 0),
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (received_quantity <= expected_quantity)
+  CONSTRAINT receipt_lines_received_le_expected CHECK (received_quantity <= expected_quantity)
 );
 
 CREATE TABLE outbound_orders (
@@ -182,10 +182,10 @@ CREATE TABLE outbound_order_lines (
   id                  SERIAL PRIMARY KEY,
   outbound_order_id   INTEGER NOT NULL REFERENCES outbound_orders(id) ON DELETE CASCADE,
   item_id             INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
-  requested_quantity  INTEGER NOT NULL CHECK (requested_quantity >= 0),
-  picked_quantity     INTEGER NOT NULL DEFAULT 0 CHECK (picked_quantity >= 0),
+  requested_quantity  INTEGER NOT NULL CONSTRAINT outbound_lines_requested_check CHECK (requested_quantity >= 0),
+  picked_quantity     INTEGER NOT NULL DEFAULT 0 CONSTRAINT outbound_lines_picked_check CHECK (picked_quantity >= 0),
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (picked_quantity <= requested_quantity)
+  CONSTRAINT outbound_lines_picked_le_requested CHECK (picked_quantity <= requested_quantity)
 );
 
 -- Central, append-only ledger of every stock change. Nothing should ever
@@ -194,28 +194,28 @@ CREATE TABLE stock_movements (
   id                      SERIAL PRIMARY KEY,
   type                    movement_type NOT NULL,
   item_id                 INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
-  quantity                INTEGER NOT NULL CHECK (quantity > 0),
+  quantity                INTEGER NOT NULL CONSTRAINT stock_movements_quantity_check CHECK (quantity > 0),
   source_location_id      INTEGER REFERENCES locations(id) ON DELETE RESTRICT,
   destination_location_id INTEGER REFERENCES locations(id) ON DELETE RESTRICT,
   -- Polymorphic pointer to the document that caused this movement
   -- ('RECEIPT' -> receipts.id, 'OUTBOUND_ORDER' -> outbound_orders.id). No FK
   -- because it targets different tables depending on reference_type; kept
   -- intentionally simple rather than introducing a junction table per type.
-  reference_type          VARCHAR(30) CHECK (reference_type IN ('RECEIPT', 'OUTBOUND_ORDER', 'TRANSFER', 'ADJUSTMENT')),
+  reference_type          VARCHAR(30) CONSTRAINT stock_movements_reference_type_check CHECK (reference_type IN ('RECEIPT', 'OUTBOUND_ORDER', 'TRANSFER', 'ADJUSTMENT')),
   reference_id             INTEGER,
   reason                  adjustment_reason,
   user_id                 INTEGER REFERENCES users(id) ON DELETE SET NULL,
   notes                   TEXT,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CHECK (
+  CONSTRAINT stock_movements_locations_check CHECK (
     (type = 'RECEIPT'         AND source_location_id IS NULL     AND destination_location_id IS NOT NULL) OR
     (type = 'OUTBOUND'        AND source_location_id IS NOT NULL AND destination_location_id IS NULL) OR
     (type = 'TRANSFER'        AND source_location_id IS NOT NULL AND destination_location_id IS NOT NULL) OR
     (type = 'ADJUSTMENT_IN'   AND source_location_id IS NULL     AND destination_location_id IS NOT NULL) OR
     (type = 'ADJUSTMENT_OUT'  AND source_location_id IS NOT NULL AND destination_location_id IS NULL)
   ),
-  CHECK (source_location_id IS NULL OR destination_location_id IS NULL OR source_location_id <> destination_location_id),
-  CHECK ((type IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT')) = (reason IS NOT NULL))
+  CONSTRAINT stock_movements_distinct_locations_check CHECK (source_location_id IS NULL OR destination_location_id IS NULL OR source_location_id <> destination_location_id),
+  CONSTRAINT stock_movements_reason_check CHECK ((type IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT')) = (reason IS NOT NULL))
 );
 
 -- -----------------------------------------------------------------------------
@@ -321,7 +321,10 @@ INSERT INTO items (sku, name, description, category_id, unit, minimum_stock) VAL
   ('HUB-USB-C-7P',   'Hub USB-C 7 puertos',               '3x USB-A, HDMI, SD, PD 100W',               (SELECT id FROM categories WHERE name = 'Cableado y Conectividad'), 'UD', 6),
   ('SSD-NVME-1TB',   'Disco SSD NVMe 1TB',                 'PCIe 4.0, hasta 7000MB/s',                  (SELECT id FROM categories WHERE name = 'Componentes'),             'UD', 6),
   ('RAM-DDR4-16G',   'Módulo RAM DDR4 16GB',              '3200MHz, CL16',                             (SELECT id FROM categories WHERE name = 'Componentes'),             'UD', 8),
-  ('FUE-ALIM-650W',  'Fuente de alimentación 650W',        '80 Plus Gold, modular',                     (SELECT id FROM categories WHERE name = 'Componentes'),             'UD', 4),
+  -- Deliberately set above its current stock (15 uds) so the demo data also
+  -- exercises the "below minimum" indicator on an item that DOES have stock,
+  -- not only on items with none.
+  ('FUE-ALIM-650W',  'Fuente de alimentación 650W',        '80 Plus Gold, modular',                     (SELECT id FROM categories WHERE name = 'Componentes'),             'UD', 20),
   ('AUR-DIAD-001',   'Auriculares con diadema',            'Inalámbricos, cancelación de ruido activa', (SELECT id FROM categories WHERE name = 'Audio y Vídeo'),           'UD', 8);
 
 -- 4.6 Documents (receipts, outbound orders) and their lines --------------------

@@ -12,7 +12,7 @@ import {
   index,
   check,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 
 // -----------------------------------------------------------------------------
 // This file mirrors database/schema.sql exactly. It is used only to build
@@ -93,6 +93,7 @@ export const items = pgTable(
   (table) => [
     index("idx_items_category").on(table.categoryId),
     index("idx_items_active").on(table.active),
+    index("idx_items_name_trgm").on(sql`lower(${table.name})`),
     check("items_minimum_stock_check", sql`${table.minimumStock} >= 0`),
   ]
 );
@@ -115,6 +116,7 @@ export const locations = pgTable(
     unique("locations_warehouse_code_key").on(table.warehouseId, table.code),
     index("idx_locations_warehouse").on(table.warehouseId),
     index("idx_locations_zone").on(table.zone),
+    check("locations_capacity_check", sql`${table.capacity} IS NULL OR ${table.capacity} > 0`),
   ]
 );
 
@@ -242,9 +244,32 @@ export const stockMovements = pgTable(
   },
   (table) => [
     index("idx_movements_item").on(table.itemId),
-    index("idx_movements_created_at").on(table.createdAt),
+    index("idx_movements_created_at").on(desc(table.createdAt)),
     index("idx_movements_type").on(table.type),
     index("idx_movements_user").on(table.userId),
+    index("idx_movements_source_location").on(table.sourceLocationId),
+    index("idx_movements_destination_location").on(table.destinationLocationId),
     check("stock_movements_quantity_check", sql`${table.quantity} > 0`),
+    check(
+      "stock_movements_reference_type_check",
+      sql`${table.referenceType} IN ('RECEIPT', 'OUTBOUND_ORDER', 'TRANSFER', 'ADJUSTMENT')`
+    ),
+    // Each movement type dictates which side (source/destination) must be set.
+    check(
+      "stock_movements_locations_check",
+      sql`(${table.type} = 'RECEIPT' AND ${table.sourceLocationId} IS NULL AND ${table.destinationLocationId} IS NOT NULL)
+       OR (${table.type} = 'OUTBOUND' AND ${table.sourceLocationId} IS NOT NULL AND ${table.destinationLocationId} IS NULL)
+       OR (${table.type} = 'TRANSFER' AND ${table.sourceLocationId} IS NOT NULL AND ${table.destinationLocationId} IS NOT NULL)
+       OR (${table.type} = 'ADJUSTMENT_IN' AND ${table.sourceLocationId} IS NULL AND ${table.destinationLocationId} IS NOT NULL)
+       OR (${table.type} = 'ADJUSTMENT_OUT' AND ${table.sourceLocationId} IS NOT NULL AND ${table.destinationLocationId} IS NULL)`
+    ),
+    check(
+      "stock_movements_distinct_locations_check",
+      sql`${table.sourceLocationId} IS NULL OR ${table.destinationLocationId} IS NULL OR ${table.sourceLocationId} <> ${table.destinationLocationId}`
+    ),
+    check(
+      "stock_movements_reason_check",
+      sql`(${table.type} IN ('ADJUSTMENT_IN', 'ADJUSTMENT_OUT')) = (${table.reason} IS NOT NULL)`
+    ),
   ]
 );
