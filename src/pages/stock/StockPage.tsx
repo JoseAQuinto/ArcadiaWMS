@@ -90,12 +90,13 @@ export function StockPage() {
                     <th className="px-4 py-2.5">Ubicación</th>
                     <th className="px-4 py-2.5">Almacén</th>
                     <th className="px-4 py-2.5 text-right">Cantidad</th>
+                    <th className="px-4 py-2.5 text-right">Nivel</th>
                     <th className="px-4 py-2.5">Actualizado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {data.rows.map((row) => {
-                    const low = row.quantity < row.minimumStock;
+                    const low = row.itemTotalStock < row.minimumStock;
                     return (
                       <tr key={row.id} className="hover:bg-slate-50">
                         <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{row.sku}</td>
@@ -103,8 +104,18 @@ export function StockPage() {
                         <td className="px-4 py-2.5 text-slate-500">{row.categoryName ?? "—"}</td>
                         <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{row.locationCode}</td>
                         <td className="px-4 py-2.5 text-slate-500">{row.warehouseCode}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-700">{formatNumber(row.quantity)}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <span className={low ? "font-semibold text-amber-600" : "text-slate-700"}>{formatNumber(row.quantity)}</span>
+                          {low ? (
+                            <span
+                              className="font-medium text-amber-600"
+                              title={`Total del artículo: ${formatNumber(row.itemTotalStock)} · mínimo: ${formatNumber(row.minimumStock)}`}
+                            >
+                              Bajo mínimo
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-slate-400">{formatDateTime(row.updatedAt)}</td>
                       </tr>
@@ -116,17 +127,18 @@ export function StockPage() {
 
             <div className="flex flex-col divide-y divide-slate-100 sm:hidden">
               {data.rows.map((row) => {
-                const low = row.quantity < row.minimumStock;
+                const low = row.itemTotalStock < row.minimumStock;
                 return (
                   <div key={row.id} className="flex flex-col gap-1 px-4 py-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-slate-800">{row.itemName}</span>
-                      <span className={low ? "font-semibold text-amber-600" : "text-slate-700"}>{formatNumber(row.quantity)}</span>
+                      <span className="shrink-0 text-slate-700">{formatNumber(row.quantity)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <span className="font-mono">{row.sku}</span>
                       <span className="font-mono">{row.locationCode}</span>
                     </div>
+                    {low && <span className="text-xs font-medium text-amber-600">Artículo bajo mínimo</span>}
                   </div>
                 );
               })}

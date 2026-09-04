@@ -97,8 +97,13 @@ export interface StockRow {
   warehouseCode: string;
   quantity: number;
   minimumStock: number;
+  /** Stock of this item across every location. `minimumStock` is a per-item threshold, so "below minimum" must be judged against this, never against the quantity of a single location. */
+  itemTotalStock: number;
   updatedAt: Date;
 }
+
+/** Total stock of the row's item across every location, as a correlated subquery. */
+const itemTotalStockSql = sql<number>`(SELECT COALESCE(SUM(s2.quantity), 0)::int FROM stock s2 WHERE s2.item_id = ${stock.itemId})`;
 
 function buildStockConditions(query: StockListQuery) {
   const conditions: SQL[] = [];
@@ -113,9 +118,7 @@ function buildStockConditions(query: StockListQuery) {
     if (searchCondition) conditions.push(searchCondition);
   }
   if (query.lowStock) {
-    conditions.push(
-      sql`(SELECT COALESCE(SUM(s2.quantity), 0) FROM stock s2 WHERE s2.item_id = ${stock.itemId}) < ${items.minimumStock}`
-    );
+    conditions.push(sql`${itemTotalStockSql} < ${items.minimumStock}`);
   }
   return conditions;
 }
@@ -137,6 +140,7 @@ export async function listStock(query: StockListQuery) {
       warehouseCode: warehouses.code,
       quantity: stock.quantity,
       minimumStock: items.minimumStock,
+      itemTotalStock: itemTotalStockSql,
       updatedAt: stock.updatedAt,
     })
     .from(stock)
@@ -177,20 +181,4 @@ export async function getStockByItem(itemId: number, executor: Executor = db) {
     .innerJoin(warehouses, eq(locations.warehouseId, warehouses.id))
     .where(and(eq(stock.itemId, itemId), gt(stock.quantity, 0)))
     .orderBy(desc(stock.quantity));
-}
-
-export async function getStockByLocation(locationId: number, executor: Executor = db) {
-  return executor
-    .select({
-      id: stock.id,
-      itemId: stock.itemId,
-      sku: items.sku,
-      itemName: items.name,
-      unit: items.unit,
-      quantity: stock.quantity,
-    })
-    .from(stock)
-    .innerJoin(items, eq(stock.itemId, items.id))
-    .where(and(eq(stock.locationId, locationId), gt(stock.quantity, 0)))
-    .orderBy(items.name);
 }

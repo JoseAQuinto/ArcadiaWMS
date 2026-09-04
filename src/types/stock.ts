@@ -10,6 +10,8 @@ export interface StockRow {
   warehouseCode: string;
   quantity: number;
   minimumStock: number;
+  /** Stock of this item across every location: `minimumStock` is a per-item threshold, so "below minimum" is judged against this, not against `quantity`. */
+  itemTotalStock: number;
   updatedAt: string;
 }
 

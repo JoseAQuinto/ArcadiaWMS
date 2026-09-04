@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { fetchCurrentUser, login as loginRequest } from "@/services/auth.api";
-import { clearToken, getToken, setToken } from "@/services/api";
+import { clearToken, getToken, onUnauthorized, setToken } from "@/services/api";
 import type { User } from "@/types/auth";
 
 interface AuthContextValue {
@@ -45,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setStatus("unauthenticated");
   }, []);
+
+  // A token the server rejects mid-session (expired, secret rotated) must send
+  // the user back to the login screen instead of leaving every page erroring.
+  useEffect(() => onUnauthorized(logout), [logout]);
 
   const value = useMemo(() => ({ user, status, login, logout }), [user, status, login, logout]);
 

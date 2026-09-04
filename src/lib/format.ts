@@ -25,15 +25,3 @@ export function formatDate(value: string | Date): string {
 export function formatNumber(value: number): string {
   return numberFormatter.format(value);
 }
-
-export function formatRelativeShort(value: string | Date): string {
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffMinutes = Math.round(diffMs / 60000);
-  if (diffMinutes < 1) return "ahora mismo";
-  if (diffMinutes < 60) return `hace ${diffMinutes} min`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `hace ${diffHours} h`;
-  const diffDays = Math.round(diffHours / 24);
-  if (diffDays < 7) return `hace ${diffDays} d`;
-  return formatDate(value);
-}

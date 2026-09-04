@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/Field";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { LoadingState, ErrorState, EmptyState } from "@/components/ui/States";
 import { useLocations } from "@/hooks/useLocations";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuth } from "@/context/AuthContext";
 import { getErrorMessage } from "@/lib/errors";
 import { LocationDetailModal } from "./LocationDetailModal";
@@ -40,13 +41,14 @@ export function LocationsPage() {
   const isAdmin = user?.role === "ADMIN";
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = useState<LocationStatus | "">("");
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useLocations({
     status: status || undefined,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
   });
 
   const zones = useMemo(() => {

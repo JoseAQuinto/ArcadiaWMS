@@ -12,6 +12,21 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+type UnauthorizedListener = () => void;
+let unauthorizedListener: UnauthorizedListener | null = null;
+
+/**
+ * Lets AuthContext react to a token the server no longer accepts (expired, or
+ * signed with a rotated secret). Without this the token is dropped but the app
+ * keeps rendering as "logged in" and every screen just fails.
+ */
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListener = listener;
+  return () => {
+    if (unauthorizedListener === listener) unauthorizedListener = null;
+  };
+}
+
 export class ApiRequestError extends Error {
   status: number;
 
@@ -67,8 +82,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok || !payload?.success) {
-    if (response.status === 401) {
+    // Only a request that actually carried a token means "your session died";
+    // a 401 from the login form is just wrong credentials.
+    if (response.status === 401 && token) {
       clearToken();
+      unauthorizedListener?.();
     }
     throw new ApiRequestError(response.status, payload?.message ?? "Ha ocurrido un error inesperado.");
   }
