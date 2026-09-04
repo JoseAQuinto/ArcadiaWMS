@@ -67,7 +67,9 @@ Neon PostgreSQL
 - Frontend y API se despliegan **en el mismo proyecto de Vercel**: el frontend es un build estático de Vite y cada archivo bajo `api/` se convierte automáticamente en una Vercel Function con el runtime Node.js oficial.
 - Cada función es un handler HTTP delgado (`api/**/*.ts`): valida método y query/params, delega en `server/services/*.ts` para la lógica de negocio y usa `server/utils/http.ts` para dar una respuesta consistente.
 - La conexión a Neon usa `@neondatabase/serverless` (`Pool` sobre WebSocket) + `drizzle-orm/neon-serverless`, centralizada en `server/db/index.ts`. Esto permite transacciones interactivas reales (`db.transaction`) en un entorno serverless, y el pool se reutiliza entre invocaciones cuando la instancia de la función sigue "caliente".
-- **Integridad de stock**: toda operación que cambia stock (recepción, picking, transferencia, regularización) ocurre dentro de una transacción de PostgreSQL. Para evitar condiciones de carrera, la resta de stock usa `SELECT ... FOR UPDATE` para bloquear la fila antes de comprobar y descontar cantidad — así dos peticiones concurrentes nunca pueden dejar stock negativo.
+- **Integridad de stock**: toda operación que cambia stock (recepción, picking, transferencia, regularización) ocurre dentro de una transacción de PostgreSQL, con dos niveles de bloqueo:
+  - la resta de stock hace `SELECT ... FOR UPDATE` sobre la fila de `stock` antes de comprobar y descontar, así que dos peticiones concurrentes nunca pueden dejar stock negativo;
+  - recibir o preparar una línea bloquea además la **cabecera del documento** (`SELECT ... FOR UPDATE` sobre `receipts` / `outbound_orders`), de modo que un doble clic o un reintento del navegador no puede aplicar la misma operación dos veces ni descuadrar `received_quantity` / `picked_quantity` respecto al stock real.
 
 ## Project structure
 
@@ -159,6 +161,8 @@ npm run lint         # ESLint
 npm run test         # vitest (lógica de negocio sensible)
 ```
 
+El proyecto fija `engines.node` a **22.x** (Node 20 queda deprecado en Vercel el 1 de octubre de 2026).
+
 ## Demo users
 
 | Rol       | Usuario    | Contraseña     |
@@ -188,7 +192,18 @@ Puedes iniciar sesión con el **usuario o el email** (`admin@arcadiawms.com` / `
 - Queries parametrizadas vía Drizzle (sin concatenación de SQL).
 - Los errores nunca exponen stack traces ni detalles internos al cliente.
 - `DATABASE_URL` y `JWT_SECRET` existen únicamente en el servidor.
+- Un 401 del backend (token caducado o `JWT_SECRET` rotado) cierra la sesión en el frontend y devuelve al login, en lugar de dejar la aplicación en un estado "logueado" que falla en cada pantalla.
+
+Compromisos asumidos conscientemente (documentados, no olvidados):
+
+- El JWT se guarda en `localStorage`, no en una cookie `httpOnly`. Es lo que permite que el frontend sea 100% estático y la API sin estado; a cambio, un XSS podría leer el token. Para un despliegue con datos reales, el siguiente paso sería mover la sesión a cookie `httpOnly` + `SameSite=Strict`.
+- El endpoint de login no tiene rate limiting. En Vercel lo natural sería resolverlo con Vercel Firewall / rate limiting de plataforma antes que en el propio handler.
 
 ## Pending / known limitations
 
-Ver [`PROGRESS.md`](PROGRESS.md) para el estado detallado de la sesión de construcción y qué queda por hacer antes de considerar el proyecto 100% cerrado (principalmente: probar el flujo completo contra un Neon real y en el navegador, ya que en el entorno de desarrollo no había credenciales de Neon disponibles).
+- **La capacidad de una ubicación es informativa, no se aplica.** Se usa para calcular el estado (`AVAILABLE` / `PARTIAL` / `OCCUPIED`) y el porcentaje de ocupación, pero una recepción, transferencia o regularización puede dejar una ubicación por encima de su capacidad (el porcentaje se muestra topado al 100%). Es una decisión deliberada para no bloquear operaciones en almacenes cuyos datos de capacidad no estén afinados; si algún día se quiere aplicar de verdad, el sitio es `increaseStock` en `server/services/stock.service.ts`.
+- **No hay pantalla de detalle de artículo.** El endpoint `GET /api/items/:id` y su cliente tipado (`fetchItem` / `useItem`) existen y están probados, pero todavía no hay una vista que los consuma; el listado y el modal de edición cubren el flujo actual.
+- **Filtros de fecha del histórico en UTC.** `dateFrom` / `dateTo` se interpretan como días UTC, no en la zona horaria del navegador. Con un almacén en un único huso es irrelevante; conviene tenerlo en cuenta si algún día hay operación en varias zonas.
+- Sin desplegar todavía: falta la URL de demo pública en Vercel y las capturas del README.
+
+Ver [`PROGRESS.md`](PROGRESS.md) para el estado detallado y cómo se ha verificado cada flujo.

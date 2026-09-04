@@ -1,83 +1,75 @@
 # Estado del proyecto — punto de retomada
 
-Última actualización: 2026-09-04. Léeme primero si continúas este trabajo.
+Última actualización: 2026-09-04 (sesión de revisión y estabilización). Léeme primero si continúas este trabajo.
 
 ## Resumen rápido
 
-El proyecto está **funcionalmente completo y probado de extremo a extremo en navegador real**, contra Postgres real (no solo a nivel de servicios). Es el punto más maduro alcanzado hasta ahora:
+El proyecto está **funcionalmente completo, revisado de arriba abajo y verificado contra Postgres real y en navegador real**. Esta sesión no ha añadido módulos nuevos: ha sido una pasada de revisión, corrección de bugs y endurecimiento.
 
-- `npm run build` pasa (TypeScript estricto + Vite build) sin errores.
-- `npx eslint .` limpio (solo 4 warnings menores de `react-refresh/only-export-components` en los contexts, patrón aceptado a propósito).
-- `npx vitest run` pasa: 19 tests.
-- `database/schema.sql` verificado contra Postgres 16 real (dos veces, en dos sesiones distintas, contenedores Docker desechables ya eliminados) — datos demo 100% coherentes.
-- **Sesión 2 (esta)**: se montó un entorno completo de prueba real — Postgres 16 desechable + un servidor Node temporal (`scripts/_dev-server.ts`, ya borrado) que imitaba el enrutado de Vercel Functions sirviendo `api/*.ts` de verdad + el build de `dist/` — y se abrió la aplicación en un navegador real para probar visualmente **todos** los módulos como un usuario real, con ambos roles.
+Estado de las comprobaciones:
 
-### Qué se probó en el navegador (todo funcionó correctamente)
+- `npm run build` (tsc estricto + Vite): **OK**.
+- `npx eslint .`: **0 errores**, 4 warnings de `react-refresh/only-export-components` en los contexts (patrón aceptado a propósito).
+- `npx vitest run`: **23 tests OK** (6 archivos).
+- Batería E2E contra Postgres 16 real + la API real servida como Vercel Functions: **128 comprobaciones OK, 0 fallos**.
+- Prueba de concurrencia (10–12 peticiones simultáneas): **OK**, sin duplicados y sin stock negativo.
+- `database/schema.sql` y `server/db/schema.ts`: **paridad verificada automáticamente** (mismos CHECK con los mismos nombres, mismos índices, mismas columnas/tipos/defaults).
 
-- Login con usuario y con las cuentas demo (botones de relleno rápido), logout.
-- Dashboard: estadísticas y gráficos con datos reales y coherentes.
-- Artículos: listado, filtro, indicador de "bajo mínimo", **creación de un artículo nuevo** (formulario completo, aparece en la lista al instante).
-- Ubicaciones: grid visual por zonas exactamente como se pidió (código + porcentaje/LIBRE/BLOQUEADA, colores por estado), modal de detalle con contenido y edición de capacidad/bloqueo.
-- Stock: listado filtrable, confirmado de solo lectura.
-- Entradas: recepción parcial real (recibir 20 de 50 uds. en una ubicación), la línea se actualiza, el estado pasa a RECIBIENDO, aparece en el histórico.
-- Movimientos (transferencias): formulario guiado artículo → origen (con stock disponible) → destino → cantidad; matemática verificada exacta en la pantalla de Stock tras la operación (origen -15, destino +15).
-- Salidas: preparación parcial de una línea, la línea se actualiza, el pedido pasa a PREPARANDO.
-- Regularizaciones: se probó el rechazo por stock insuficiente (mensaje correcto en rojo) y luego un decremento válido, ambos con motivo.
-- Histórico: verificado que cada operación anterior aparece con todos sus datos (fecha, tipo, artículo, cantidad, origen/destino, referencia, usuario).
-- Autorización en la UI: con el usuario OPERATOR no aparece "Configuración" en el menú, ni los botones de crear/editar artículos — confirmando que el rol se respeta también visualmente (el backend ya lo garantizaba, verificado en la sesión anterior).
-- Responsive: el dashboard se probó a 375px (móvil) y el layout se adapta correctamente (grid de 2 columnas, gráficos apilados). El menú hamburguesa/drawer móvil no se pudo verificar por clic debido a una limitación puntual de la herramienta de navegador en esta sesión (el panel quedó "oculto" y los clics colgaban; las lecturas de página sí funcionaban) — el componente (`src/components/layout/MobileDrawer.tsx`) reutiliza el mismo `SidebarContent` ya validado en escritorio, así que el riesgo es bajo, pero merece una verificación visual rápida si tienes ocasión.
+## Bugs encontrados y corregidos en esta sesión
 
-### Bug real encontrado y corregido en esta sesión
+1. **Doble ejecución en recepción y picking (crítico).** `receiveLine` y `pickLine` leían la línea del documento sin bloqueo. Dos peticiones simultáneas (doble clic, reintento del navegador) leían la misma `receivedQuantity` / `pickedQuantity`, ambas movían stock, y el documento solo contabilizaba una → **el stock se descontaba dos veces y el pedido decía que solo se había preparado una**. Reproducido de forma determinista: dos picks simultáneos de 3 uds dejaban el stock en −6 con `picked_quantity = 3`.
+   **Corregido** bloqueando la cabecera del documento con `SELECT ... FOR UPDATE` al inicio de la transacción. Verificado con 10 peticiones simultáneas: exactamente 3 respuestas 200, 3 movimientos, stock −3.
+2. **Transiciones de estado sin control en recepciones y pedidos.** Se podía forzar por API el estado de un documento (reabrir uno `COMPLETED`/`CANCELLED`, volver a `PENDING` uno ya recibido, editar un documento cerrado). **Corregido**: el estado se calcula siempre a partir de las líneas y el único estado que un cliente puede fijar a mano es `CANCELLED`; un documento cerrado ya no admite cambios.
+3. **Indicador "bajo mínimo" incorrecto en la pantalla de Stock.** Comparaba la cantidad de **una ubicación** contra el stock mínimo **global del artículo**, mientras que el filtro "Bajo mínimo" del backend comparaba el total. Un artículo con 220 uds repartidas (10 + 60 + 150) y mínimo 20 marcaba la fila de 10 uds como "bajo mínimo". **Corregido**: la API devuelve `itemTotalStock` y frontend y filtro usan el mismo criterio.
+4. **La sesión caducada dejaba la aplicación colgada.** Ante un 401 se borraba el token pero el estado seguía siendo "autenticado", así que todas las pantallas fallaban sin explicación. **Corregido**: el cliente HTTP notifica al `AuthContext` y se cierra sesión con redirección al login.
+5. **Regresión de UNIQUE → 500 tras actualizar Drizzle.** Drizzle 0.44+ envuelve los errores del driver en `DrizzleQueryError` y deja el error de Postgres en `cause`, así que `mapUniqueViolation` dejaba de reconocer el código `23505` y un SKU duplicado devolvía 500 en vez de 409. **Corregido** recorriendo la cadena de `cause` (funciona con ambos drivers y con versiones anteriores). Con test unitario que fija el comportamiento.
+6. **PUT con payload vacío → 500.** `updateLocation` / `updateCategory` / `updateItem` generaban un `UPDATE` sin `SET`. **Corregido**: 400 con mensaje claro.
+7. **`engines.node: 20.x`.** Node 20 queda deprecado en Vercel el 1 de octubre de 2026. **Subido a 22.x.**
+8. **`drizzle-orm` con aviso de seguridad alto** (inyección SQL vía identificadores mal escapados). **Actualizado** 0.36.4 → 0.45.2 (y `drizzle-kit` 0.28 → 0.31). El proyecto no construía identificadores a partir de entrada de usuario, así que no era explotable aquí, pero el aviso desaparece.
+9. **Desalineación entre `database/schema.sql` y el esquema Drizzle.** A Drizzle le faltaban el CHECK de `locations.capacity`, los cuatro CHECK de coherencia de `stock_movements`, el índice `idx_items_name_trgm`, los índices por ubicación origen/destino y el `DESC` de `idx_movements_created_at`; y los CHECK del SQL eran anónimos. **Corregido**: todos los CHECK del SQL tienen nombre explícito y ambos ficheros generan exactamente los mismos objetos (comprobado por diff automático contra la BD real).
 
-Los selectores de artículo en los formularios de recepción, salida, transferencia y regularización piden `pageSize=200` para cargar el catálogo completo en el desplegable, pero el validador Zod (`server/validators/common.ts`) limitaba `pageSize` a un máximo de 100 → esas peticiones devolvían `400 Bad Request` y los desplegables aparecían vacíos. **Corregido**: el límite ahora es 500, con un comentario explicando por qué. Verificado en el navegador que los cuatro formularios cargan el catálogo completo tras el fix.
+## Retoques (no eran bugs, mejoran el producto)
 
-## Lo que falta (en orden de prioridad)
+- Columna **"Nivel"** en la tabla de Stock: la cantidad ya no se pinta en ámbar; el aviso "Bajo mínimo" es explícito y con tooltip que indica el total del artículo y su mínimo.
+- **Drawer móvil**: se cierra con `Escape`, bloquea el scroll del fondo y declara `role="dialog"` (mismo comportamiento que los modales).
+- **Buscador de ubicaciones con debounce**, como el resto de listados (antes lanzaba una petición por tecla).
+- **Datos demo**: `FUE-ALIM-650W` pasa a stock mínimo 20 (tiene 15 uds) para que el indicador "bajo mínimo" también se vea en un artículo *con* stock, no solo en artículos a cero.
+- **Código muerto eliminado**: endpoint `GET /api/stock/location/:id` y su servicio (nadie lo llamaba y duplicaba lo que ya devuelve `GET /api/locations/:id`), y el helper `formatRelativeShort` sin uso.
 
-1. **Verificar el drawer móvil con un clic real.** El código sigue el mismo patrón que el sidebar de escritorio (ya validado), pero no se pudo confirmar visualmente por la limitación de la herramienta mencionada arriba. Abrir en un móvil real o `npm run dev` + DevTools y tocar el icono de hamburguesa.
-2. **Desplegar contra un Neon real** y repetir una pasada rápida (los flujos ya están probados contra Postgres real, así que esto es más sobre confirmar que Neon específicamente — pooling, latencia — no cambia nada).
-3. **Screenshots del README.** Se hicieron capturas de todas las pantallas durante esta sesión (visualmente confirmadas como profesionales y correctas) pero no había forma de exportarlas a archivos `.png` en este entorno — quedan pendientes de hacer una vez desplegado.
-4. **URL de demo pública** en Vercel (pasos en el README).
-
-## Cómo volver a montar el entorno de prueba local (si lo necesitas)
-
-No queda nada de esto en el repo (todo se limpió), pero así es como se hizo, por si hace falta repetirlo:
+## Cómo se ha verificado (reproducible)
 
 ```bash
-# 1. Postgres desechable
-docker run --rm -d --name arcadia-test-db -p 5545:5432 \
+# 1. Postgres 16 desechable
+docker run --rm -d --name arcadia-verify-db -p 5546:5432 \
   -e POSTGRES_PASSWORD=verify -e POSTGRES_USER=verify -e POSTGRES_DB=arcadia_verify \
   postgres:16-alpine
 
-# 2. Cargar el esquema + datos demo
-MSYS_NO_PATHCONV=1 docker exec -e PGPASSWORD=verify -i arcadia-test-db \
-  psql -U verify -d arcadia_verify < database/schema.sql
+# 2. Cargar esquema + datos demo
+MSYS_NO_PATHCONV=1 docker exec -e PGPASSWORD=verify -i arcadia-verify-db \
+  psql -U verify -d arcadia_verify -v ON_ERROR_STOP=1 < database/schema.sql
 
-# 3. server/db/index.ts usa @neondatabase/serverless, que no habla directamente
-#    con un Postgres normal. Para probar localmente sin Neon, sustituye
-#    TEMPORALMENTE ese archivo por una versión con drizzle-orm/node-postgres + pg
-#    (instalar con `npm install --no-save pg @types/pg`), y RESTAURA el original
-#    al terminar — no lo dejes así commiteado.
+# 3. server/db/index.ts usa @neondatabase/serverless, que no habla con un Postgres
+#    normal. Para probar en local, sustituye TEMPORALMENTE ese archivo por una
+#    versión con drizzle-orm/node-postgres + pg (`npm install --no-save pg @types/pg`)
+#    y RESTAURA el original al terminar. No lo dejes así commiteado.
 
-# 4. npm run build (genera dist/), luego un servidor Node que sirva dist/ como
-#    estático y monte cada api/*.ts como si fuera una Vercel Function (mismo
-#    patrón que scripts/_dev-server.ts, que se borró — recréalo si hace falta,
-#    la estructura de rutas está documentada en api/).
+# 4. npm run build, y luego un servidor Node que sirva dist/ como estático y monte
+#    cada api/**/*.ts como si fuera una Vercel Function (resolviendo [id] y
+#    [id]/sub). Con eso, la aplicación real corre en http://localhost:3311.
 ```
 
-## Lo que SÍ está terminado
+Lo que se probó de verdad, no "por inspección":
 
-- **Base de datos**: `database/schema.sql` completo (tablas, enums, checks, índices, secuencias) + `server/db/schema.ts` (Drizzle) sincronizado. Verificado dos veces contra Postgres real.
-- **Backend completo**: `server/db`, `server/auth`, `server/validators`, `server/services`, y todos los endpoints en `api/*`. Probado tanto a nivel de servicio (sesión anterior) como end-to-end vía HTTP + navegador (esta sesión).
-- **Integridad transaccional**: verificada en el navegador, no solo en teoría — las cantidades cuadran exactamente tras cada operación.
-- **Frontend completo**: todas las páginas navegadas y probadas visualmente con datos reales.
-- **Autenticación/autorización**: probada con ambos roles en el navegador.
-- **README.md** y este `PROGRESS.md`.
+- **API (128 comprobaciones)**: login correcto/incorrecto, login por email, JWT manipulado / `alg=none` / firma alterada; ADMIN vs OPERATOR en cada endpoint mutador; acceso anónimo a todos los GET; recepción parcial/total, exceso, ubicación bloqueada, línea de otro documento; picking, exceso, ubicación sin stock; transferencias (válida, mismo origen/destino, sin stock, destino bloqueado, cantidad 0/negativa); regularizaciones (+/−, sin motivo, sin stock, ubicación bloqueada); artículos y ubicaciones (duplicados, SKU inválido, capacidad 0, id no numérico); paginación; métodos no permitidos; transiciones de estado; payloads vacíos.
+- **Invariantes en base de datos** tras toda la batería: 0 filas con stock negativo; el stock cuadra **exactamente** con la suma del ledger de movimientos; `received_quantity` y `picked_quantity` cuadran con los movimientos de su documento; el estado de cada recepción es coherente con sus líneas.
+- **Concurrencia**: 10 recepciones simultáneas sobre una línea de 4 → 4 aplicadas; 10 picks simultáneos sobre una línea de 3 → 3 aplicados; 12 salidas simultáneas contra 6 uds de stock → 6 OK, 6 rechazadas con 409, stock final 0 y nunca negativo.
+- **Navegador real** (1440×900, tablet 768×1024, móvil 375×812): login, dashboard, stock (indicador y filtro "bajo mínimo"), transferencia completa con comprobación de que el stock y "Últimas transferencias" se actualizan al instante, recepción parcial con **doble clic real** en "Confirmar recepción" (un solo movimiento en BD), histórico, mapa de ubicaciones, rol OPERATOR (sin "Configuración" ni botones de maestros, y `/settings` redirige), **drawer móvil** (abre, cierra con Escape, bloquea scroll, se cierra al navegar) y **cierre de sesión automático** al invalidar el token.
 
-## Dónde mirar si algo no compila
+## Lo que queda
 
-- `server/db/index.ts` debe usar siempre `@neondatabase/serverless` + `drizzle-orm/neon-serverless` en el código que se commitea. Si lo ves usando `pg`/`node-postgres`, es que quedó a medias de una sesión de pruebas locales — restaura la versión Neon (está en el historial de git, o en la sección de arriba).
-- `npm run build` = `tsc --noEmit && vite build`. Si falla el tsc, casi siempre es por `noUncheckedIndexedAccess` — usa `firstRow()` de `server/utils/db.ts`.
-- Si algún selector de artículo/formulario vuelve a fallar con 400, revisa `server/validators/common.ts` → `paginationSchema.pageSize` (máximo 500) antes de tocar el frontend.
+1. **Desplegar contra un Neon real** y repetir una pasada rápida. Los flujos están probados contra Postgres 16 real; falta confirmar que Neon en concreto (pooling sobre WebSocket, latencia) no cambia nada. Es lo único no verificado de la cadena.
+2. **URL de demo pública** en Vercel + **capturas para el README**.
+3. Decidir si la capacidad de ubicación debe aplicarse de verdad (hoy es informativa; ver *Pending / known limitations* en el README).
 
 ## Decisiones de diseño ya tomadas (no las reabras sin razón)
 
@@ -86,4 +78,13 @@ MSYS_NO_PATHCONV=1 docker exec -e PGPASSWORD=verify -i arcadia-test-db \
 - Estado de ubicación calculado, no guardado (excepto `blocked`).
 - Ubicación bloqueada: no admite entradas, sí permite sacar stock.
 - `stock` nunca se edita directamente, solo vía recepción/salida/transferencia/regularización.
+- El estado de recepciones y pedidos se **deriva** de las líneas; por API solo se puede fijar `CANCELLED`.
 - `pageSize` máximo de la API es 500 (no 100) porque los selectores de artículo en formularios cargan el catálogo completo de una vez.
+- La sesión es un JWT en `localStorage` (frontend estático + API sin estado). Compromiso consciente, documentado en el README.
+
+## Dónde mirar si algo no compila o falla
+
+- `server/db/index.ts` debe usar siempre `@neondatabase/serverless` + `drizzle-orm/neon-serverless` en el código commiteado. Si lo ves usando `pg`/`node-postgres`, quedó a medias de una sesión de pruebas locales — restaura la versión Neon.
+- `npm run build` = `tsc --noEmit && vite build`. Si falla el tsc, casi siempre es por `noUncheckedIndexedAccess` — usa `firstRow()` de `server/utils/db.ts`.
+- Si un selector de artículo falla con 400, revisa `paginationSchema.pageSize` en `server/validators/common.ts` (máximo 500).
+- Si un duplicado (SKU, código de ubicación, categoría) empieza a devolver 500 en vez de 409 tras actualizar Drizzle, es la forma del error: mira `server/utils/db-errors.ts` y su test.
