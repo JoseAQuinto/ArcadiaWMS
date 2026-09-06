@@ -27,6 +27,8 @@ describe("matchRoute", () => {
   it.each([
     ["auth/login", ["auth", "login"]],
     ["auth/me", ["auth", "me"]],
+    ["auth/password", ["auth", "password"]],
+    ["users", ["users"]],
     ["items", ["items"]],
     ["categories", ["categories"]],
     ["warehouses", ["warehouses"]],
@@ -51,6 +53,7 @@ describe("matchRoute", () => {
     [["outbound-orders", "12"], { id: "12" }],
     [["outbound-orders", "12", "pick"], { id: "12" }],
     [["stock", "item", "7"], { id: "7" }],
+    [["users", "5"], { id: "5" }],
   ])("captures the id from %j", (segments, params) => {
     expect(matchRoute(segments)?.params).toEqual(params);
   });

@@ -4,6 +4,9 @@ import { ApiError } from "../utils/errors.js";
 
 import authLogin from "./auth/login.js";
 import authMe from "./auth/me.js";
+import authPassword from "./auth/password.js";
+import usersList from "./users/index.js";
+import usersDetail from "./users/detail.js";
 import itemsList from "./items/index.js";
 import itemsDetail from "./items/detail.js";
 import categoriesList from "./categories/index.js";
@@ -28,10 +31,10 @@ import dashboardSummary from "./dashboard/index.js";
 // Single entry point for the whole API.
 //
 // Vercel turns every file under api/ into its own Serverless Function, and the
-// Hobby plan caps a non-Next.js project at 12 of them — this API has 21 routes.
+// Hobby plan caps a non-Next.js project at 12 of them — this API has 24 routes.
 // So the handlers live outside api/ (in server/routes/) and this catch-all
 // dispatches to them, which also means one warm instance and one Neon
-// connection pool shared by every endpoint instead of 21 separate ones.
+// connection pool shared by every endpoint instead of 24 separate ones.
 //
 // Routing is explicit on purpose: the table below is the API surface, readable
 // at a glance. Each handler still validates its own HTTP method, so the router
@@ -47,6 +50,10 @@ interface Route {
 const ROUTES: Route[] = [
   { pattern: ["auth", "login"], handler: authLogin },
   { pattern: ["auth", "me"], handler: authMe },
+  { pattern: ["auth", "password"], handler: authPassword },
+
+  { pattern: ["users"], handler: usersList },
+  { pattern: ["users", ":id"], handler: usersDetail },
 
   { pattern: ["items"], handler: itemsList },
   { pattern: ["items", ":id"], handler: itemsDetail },

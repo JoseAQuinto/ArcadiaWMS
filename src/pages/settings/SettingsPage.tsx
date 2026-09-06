@@ -8,6 +8,7 @@ import { LoadingState, EmptyState } from "@/components/ui/States";
 import { useCategories } from "@/hooks/useCategories";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { CategoryFormModal } from "./CategoryFormModal";
+import { UsersCard } from "./UsersCard";
 import type { Category } from "@/types/category";
 
 export function SettingsPage() {
@@ -17,7 +18,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Configuración" description="Datos maestros de categorías y almacenes." />
+      <PageHeader title="Configuración" description="Datos maestros de categorías y almacenes, y gestión de usuarios." />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
@@ -82,6 +83,10 @@ export function SettingsPage() {
             ))}
           </ul>
         </Card>
+      </div>
+
+      <div className="mt-4">
+        <UsersCard />
       </div>
 
       <CategoryFormModal open={modalCategory !== undefined} onClose={() => setModalCategory(undefined)} category={modalCategory} />

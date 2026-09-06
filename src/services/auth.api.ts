@@ -8,3 +8,11 @@ export function login(identifier: string, password: string): Promise<LoginResult
 export function fetchCurrentUser(): Promise<User> {
   return apiRequest<User>("/api/auth/me");
 }
+
+/** Any authenticated role can change their own password; the current one is required. */
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/api/auth/password", {
+    method: "PUT",
+    body: { currentPassword, newPassword },
+  });
+}
