@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Plus, Package, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
@@ -106,7 +107,11 @@ export function ItemsListPage() {
                     return (
                       <tr key={item.id} className="hover:bg-slate-50">
                         <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{item.sku}</td>
-                        <td className="px-4 py-2.5 font-medium text-slate-800">{item.name}</td>
+                        <td className="px-4 py-2.5">
+                          <Link to={`/items/${item.id}`} className="font-medium text-slate-800 hover:text-primary-800 hover:underline">
+                            {item.name}
+                          </Link>
+                        </td>
                         <td className="px-4 py-2.5 text-slate-500">{item.categoryName ?? "—"}</td>
                         <td className="px-4 py-2.5 text-right">
                           <span className={lowStock ? "font-semibold text-amber-600" : "text-slate-700"}>
@@ -141,10 +146,9 @@ export function ItemsListPage() {
               {data.rows.map((item) => {
                 const lowStock = item.totalStock < item.minimumStock;
                 return (
-                  <button
+                  <Link
                     key={item.id}
-                    type="button"
-                    onClick={() => isAdmin && setModalItem(item)}
+                    to={`/items/${item.id}`}
                     className="flex flex-col gap-1 px-4 py-3 text-left"
                   >
                     <div className="flex items-center justify-between">
@@ -161,7 +165,7 @@ export function ItemsListPage() {
                       </span>
                       {lowStock && <span className="ml-1.5 text-xs text-amber-600">bajo mínimo</span>}
                     </div>
-                  </button>
+                  </Link>
                 );
               })}
             </div>

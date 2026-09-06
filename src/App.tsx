@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/ui/States";
 
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const ItemsListPage = lazy(() => import("@/pages/items/ItemsListPage").then((m) => ({ default: m.ItemsListPage })));
+const ItemDetailPage = lazy(() => import("@/pages/items/ItemDetailPage").then((m) => ({ default: m.ItemDetailPage })));
 const LocationsPage = lazy(() => import("@/pages/locations/LocationsPage").then((m) => ({ default: m.LocationsPage })));
 const StockPage = lazy(() => import("@/pages/stock/StockPage").then((m) => ({ default: m.StockPage })));
 const ReceiptsListPage = lazy(() => import("@/pages/receipts/ReceiptsListPage").then((m) => ({ default: m.ReceiptsListPage })));
@@ -33,6 +34,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="items" element={<ItemsListPage />} />
+            <Route path="items/:id" element={<ItemDetailPage />} />
             <Route path="locations" element={<LocationsPage />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="receipts" element={<ReceiptsListPage />} />
