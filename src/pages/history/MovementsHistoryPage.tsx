@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Download } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Field";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Pagination } from "@/components/ui/Pagination";
@@ -10,6 +12,9 @@ import { useMovements } from "@/hooks/useMovements";
 import { useLocations } from "@/hooks/useLocations";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getErrorMessage } from "@/lib/errors";
+import { saveBlob } from "@/lib/download";
+import { downloadMovementsCsv } from "@/services/movements.api";
+import { useToast } from "@/context/ToastContext";
 import type { MovementType } from "@/types/movement";
 
 const PAGE_SIZE = 25;
@@ -22,21 +27,45 @@ export function MovementsHistoryPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const { showToast } = useToast();
 
   const { data: locations } = useLocations({});
-  const { data, isLoading, isError, error, refetch } = useMovements({
-    page,
-    pageSize: PAGE_SIZE,
+
+  const filters = {
     search: debouncedSearch || undefined,
     type: type || undefined,
     locationId: locationId ? Number(locationId) : undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
-  });
+  };
+
+  const { data, isLoading, isError, error, refetch } = useMovements({ page, pageSize: PAGE_SIZE, ...filters });
+
+  /** Exports every movement matching the current filters, not just the page on screen. */
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const { blob, filename } = await downloadMovementsCsv(filters);
+      saveBlob(blob, filename);
+    } catch (err) {
+      showToast(getErrorMessage(err), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div>
-      <PageHeader title="Histórico" description="Trazabilidad completa de todos los movimientos de stock." />
+      <PageHeader
+        title="Histórico"
+        description="Trazabilidad completa de todos los movimientos de stock."
+        actions={
+          <Button variant="secondary" onClick={handleExport} loading={exporting} disabled={!data || data.total === 0}>
+            <Download className="h-4 w-4" /> Exportar CSV
+          </Button>
+        }
+      />
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:p-5">

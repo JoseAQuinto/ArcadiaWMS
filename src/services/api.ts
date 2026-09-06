@@ -82,14 +82,61 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok || !payload?.success) {
-    // Only a request that actually carried a token means "your session died";
-    // a 401 from the login form is just wrong credentials.
-    if (response.status === 401 && token) {
-      clearToken();
-      unauthorizedListener?.();
-    }
+    notifyIfSessionDied(response.status, token);
     throw new ApiRequestError(response.status, payload?.message ?? "Ha ocurrido un error inesperado.");
   }
 
   return payload.data as T;
+}
+
+/**
+ * Only a request that actually carried a token means "your session died";
+ * a 401 from the login form is just wrong credentials.
+ */
+function notifyIfSessionDied(status: number, token: string | null): void {
+  if (status === 401 && token) {
+    clearToken();
+    unauthorizedListener?.();
+  }
+}
+
+/** Reads the filename the server chose in Content-Disposition, falling back to the caller's. */
+function filenameFromResponse(response: Response, fallback: string): string {
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^";]+)"?/i.exec(disposition);
+  return match?.[1] ?? fallback;
+}
+
+/**
+ * File downloads (CSV exports) cannot go through apiRequest: the response is not
+ * the JSON envelope, and the token lives in a header, so a plain <a href> would
+ * hit the endpoint unauthenticated. Errors still arrive as the usual JSON
+ * envelope, so they are decoded here into the same ApiRequestError.
+ */
+export async function apiDownload(
+  path: string,
+  options: { query?: object; fallbackFilename?: string } = {}
+): Promise<{ blob: Blob; filename: string }> {
+  const token = getToken();
+
+  const response = await fetch(buildUrl(path, options.query), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    notifyIfSessionDied(response.status, token);
+    let message = "No se ha podido generar el archivo.";
+    try {
+      const payload = (await response.json()) as ApiEnvelope<unknown>;
+      if (payload?.message) message = payload.message;
+    } catch {
+      // Not a JSON error body: keep the generic message.
+    }
+    throw new ApiRequestError(response.status, message);
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: filenameFromResponse(response, options.fallbackFilename ?? "export.csv"),
+  };
 }

@@ -39,6 +39,7 @@ describe("matchRoute", () => {
     ["transfers", ["transfers"]],
     ["adjustments", ["adjustments"]],
     ["movements", ["movements"]],
+    ["movements/export", ["movements", "export"]],
     ["dashboard", ["dashboard"]],
   ])("resolves the static route %s", (_label, segments) => {
     expect(matchRoute(segments)).not.toBeNull();
@@ -69,6 +70,14 @@ describe("matchRoute", () => {
   it("prefers the literal segment over the parameter", () => {
     // "stock/item/:id" must not be swallowed by a hypothetical "stock/:id/..."
     expect(matchRoute(["stock", "item", "7"])?.params).toEqual({ id: "7" });
+  });
+
+  it("keeps the CSV export separate from the movements listing", () => {
+    const list = matchRoute(["movements"]);
+    const csv = matchRoute(["movements", "export"]);
+    expect(list).not.toBeNull();
+    expect(csv).not.toBeNull();
+    expect(list?.handler).not.toBe(csv?.handler);
   });
 
   it.each([

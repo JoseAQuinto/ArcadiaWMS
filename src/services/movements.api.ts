@@ -1,4 +1,4 @@
-import { apiRequest } from "./api";
+import { apiRequest, apiDownload } from "./api";
 import type { Movement, MovementType } from "@/types/movement";
 import type { PaginatedResult } from "@/types/api";
 
@@ -16,6 +16,11 @@ export interface MovementListParams {
 
 export function fetchMovements(params: MovementListParams = {}): Promise<PaginatedResult<Movement>> {
   return apiRequest<PaginatedResult<Movement>>("/api/movements", { query: params });
+}
+
+/** Same filters as the listing; the server caps how many rows one export can carry. */
+export function downloadMovementsCsv(params: Omit<MovementListParams, "page" | "pageSize"> = {}) {
+  return apiDownload("/api/movements/export", { query: params, fallbackFilename: "movimientos.csv" });
 }
 
 export interface CreateTransferInput {

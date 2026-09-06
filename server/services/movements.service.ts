@@ -72,7 +72,7 @@ export async function createAdjustment(input: CreateAdjustmentInput, userId: num
   });
 }
 
-export async function listMovements(query: MovementListQuery) {
+function buildMovementConditions(query: MovementListQuery): SQL[] {
   const conditions: SQL[] = [];
   if (query.itemId) conditions.push(eq(stockMovements.itemId, query.itemId));
   if (query.type) conditions.push(eq(stockMovements.type, query.type));
@@ -91,33 +91,36 @@ export async function listMovements(query: MovementListQuery) {
     const condition = or(ilike(items.sku, term), ilike(items.name, term));
     if (condition) conditions.push(condition);
   }
-  const whereClause = conditions.length ? and(...conditions) : undefined;
+  return conditions;
+}
 
-  const rows = await db
-    .select({
-      id: stockMovements.id,
-      type: stockMovements.type,
-      itemId: stockMovements.itemId,
-      sku: items.sku,
-      itemName: items.name,
-      quantity: stockMovements.quantity,
-      sourceLocationId: stockMovements.sourceLocationId,
-      destinationLocationId: stockMovements.destinationLocationId,
-      referenceType: stockMovements.referenceType,
-      referenceId: stockMovements.referenceId,
-      reason: stockMovements.reason,
-      userName: users.fullName,
-      notes: stockMovements.notes,
-      createdAt: stockMovements.createdAt,
-    })
-    .from(stockMovements)
-    .innerJoin(items, eq(stockMovements.itemId, items.id))
-    .leftJoin(users, eq(stockMovements.userId, users.id))
-    .where(whereClause)
-    .orderBy(desc(stockMovements.createdAt))
-    .limit(query.pageSize)
-    .offset((query.page - 1) * query.pageSize);
+const movementColumns = {
+  id: stockMovements.id,
+  type: stockMovements.type,
+  itemId: stockMovements.itemId,
+  sku: items.sku,
+  itemName: items.name,
+  quantity: stockMovements.quantity,
+  sourceLocationId: stockMovements.sourceLocationId,
+  destinationLocationId: stockMovements.destinationLocationId,
+  referenceType: stockMovements.referenceType,
+  referenceId: stockMovements.referenceId,
+  reason: stockMovements.reason,
+  userName: users.fullName,
+  notes: stockMovements.notes,
+  createdAt: stockMovements.createdAt,
+};
 
+interface LocatedRow {
+  sourceLocationId: number | null;
+  destinationLocationId: number | null;
+}
+
+/**
+ * Resolves location codes in a single extra query instead of joining
+ * `locations` twice (source and destination) on every movement row.
+ */
+async function withLocationCodes<T extends LocatedRow>(rows: T[]) {
   const locationIds = new Set<number>();
   rows.forEach((row) => {
     if (row.sourceLocationId) locationIds.add(row.sourceLocationId);
@@ -132,11 +135,28 @@ export async function listMovements(query: MovementListQuery) {
     : [];
   const codeById = new Map(locationCodes.map((l) => [l.id, l.code]));
 
-  const enrichedRows = rows.map((row) => ({
+  return rows.map((row) => ({
     ...row,
     sourceLocationCode: row.sourceLocationId ? codeById.get(row.sourceLocationId) ?? null : null,
     destinationLocationCode: row.destinationLocationId ? codeById.get(row.destinationLocationId) ?? null : null,
   }));
+}
+
+export async function listMovements(query: MovementListQuery) {
+  const conditions = buildMovementConditions(query);
+  const whereClause = conditions.length ? and(...conditions) : undefined;
+
+  const rows = await db
+    .select(movementColumns)
+    .from(stockMovements)
+    .innerJoin(items, eq(stockMovements.itemId, items.id))
+    .leftJoin(users, eq(stockMovements.userId, users.id))
+    .where(whereClause)
+    .orderBy(desc(stockMovements.createdAt))
+    .limit(query.pageSize)
+    .offset((query.page - 1) * query.pageSize);
+
+  const enrichedRows = await withLocationCodes(rows);
 
   const { count } = firstRow(
     await db
@@ -147,4 +167,31 @@ export async function listMovements(query: MovementListQuery) {
   );
 
   return { rows: enrichedRows, total: count, page: query.page, pageSize: query.pageSize };
+}
+
+/**
+ * Hard ceiling for one export. The ledger only grows, so an unbounded export
+ * would eventually blow the function's memory and its response time limit;
+ * beyond this, the answer is to narrow the filters (by date, item or type).
+ */
+export const MOVEMENT_EXPORT_LIMIT = 5000;
+
+/**
+ * Same filters as the history screen, but ignoring pagination: the export is
+ * meant to hand a whole filtered period to accounting or to a stock count.
+ */
+export async function exportMovements(query: MovementListQuery) {
+  const conditions = buildMovementConditions(query);
+  const whereClause = conditions.length ? and(...conditions) : undefined;
+
+  const rows = await db
+    .select(movementColumns)
+    .from(stockMovements)
+    .innerJoin(items, eq(stockMovements.itemId, items.id))
+    .leftJoin(users, eq(stockMovements.userId, users.id))
+    .where(whereClause)
+    .orderBy(desc(stockMovements.createdAt))
+    .limit(MOVEMENT_EXPORT_LIMIT);
+
+  return withLocationCodes(rows);
 }
