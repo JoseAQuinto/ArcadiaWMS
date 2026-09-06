@@ -1,8 +1,58 @@
 # Estado del proyecto — punto de retomada
 
-Última actualización: 2026-09-04 (sesión de revisión y estabilización). Léeme primero si continúas este trabajo.
+Última actualización: 2026-09-06 (sesión de ampliación). Léeme primero si continúas este trabajo.
 
-## Resumen rápido
+## Ampliación 2026-09-06 — usuarios, ficha de artículo y exportación CSV
+
+Tres huecos que un WMS en uso real nota enseguida. Ninguno toca el esquema de base de datos: `database/schema.sql` no cambia y no hay que volver a ejecutar nada en Neon.
+
+### 1. Gestión de usuarios (solo ADMIN) + cambio de contraseña propio
+
+La tabla `users` existía desde el principio con `role` y `active`, pero no había forma de dar de alta a un operario sin entrar a la base de datos a mano.
+
+- `GET /api/users` (listado paginado con búsqueda y filtros por rol/estado), `POST /api/users`, `PUT /api/users/:id` — los tres exigen `ADMIN`.
+- `PUT /api/auth/password` — cualquier rol cambia **su propia** contraseña aportando la actual.
+- UI: tarjeta **Usuarios** en Configuración (buscador, paginación, alta y edición en modal) y entrada **Cambiar contraseña** en el menú del avatar de la cabecera, visible para todos los roles.
+- Reglas que impone el backend, no solo la interfaz:
+  - política de contraseñas única (`passwordSchema`: 8+ caracteres, al menos una letra y un número) aplicada al alta, al reseteo por un administrador y al cambio propio;
+  - el `username` es inmutable (es la identidad con la que se firmó el JWT, renombrarlo invalidaría sesiones en silencio) — `updateUserSchema` es `.strict()`, así que enviarlo es un 400;
+  - un administrador no puede desactivarse ni degradarse a sí mismo;
+  - **nunca puede quedar el sistema sin administradores activos**: antes de desactivar o degradar a un `ADMIN` se bloquean con `SELECT ... FOR UPDATE` las filas de administradores activos dentro de la transacción, de modo que dos peticiones simultáneas no puedan pasar ambas el control y dejar el sistema sin acceso a maestros;
+  - el hash de contraseña no sale nunca de la capa de servicio (`toPublicUser`).
+
+### 2. Ficha de artículo (`/items/:id`)
+
+Era una limitación documentada en el README: `GET /api/items/:id` y `useItem` existían sin ninguna vista que los consumiera. La ficha reúne datos maestros, stock por ubicación, indicador de bajo mínimo y los 10 últimos movimientos del artículo (reutilizando el ledger vía `GET /api/movements?itemId=`, sin añadir endpoint nuevo). El listado de artículos enlaza a ella desde el nombre (y desde la tarjeta completa en móvil).
+
+### 3. Exportación del histórico a CSV
+
+`GET /api/movements/export` acepta **exactamente los mismos filtros** que el listado y devuelve un CSV con todo lo que cumple el filtro, no solo la página en pantalla. Es el único endpoint de la API que no responde con el sobre JSON.
+
+- Separador `;` y BOM UTF-8: la aplicación es en español y Excel con configuración regional española abre el archivo bien así (con `,` y sin BOM sale en una sola columna y con los acentos rotos).
+- Tope de 5.000 filas (`MOVEMENT_EXPORT_LIMIT`) para no agotar memoria ni tiempo de la función; el ledger solo crece.
+- En el frontend, la descarga no puede ser un `<a href>` normal porque el token va en la cabecera: `apiDownload` hace el `fetch` autenticado, decodifica los errores del sobre JSON como el resto del cliente y `saveBlob` entrega el archivo al navegador.
+
+### Cómo se ha verificado esta ampliación
+
+- `npm run build` (check:imports + `tsc --noEmit` estricto + build de Vite): **OK**.
+- `npx eslint .`: **0 errores** (los 4 warnings de `react-refresh` preexistentes en los contexts).
+- `npx vitest run`: **95 tests OK** (9 archivos), incluidos los nuevos de `server/validators/users.test.ts` (política de contraseñas, username inmutable, normalización de email, rol fuera del enum) y `server/utils/csv.test.ts` (escapado de `;`, comillas y saltos de línea, BOM, fechas ISO), más las rutas nuevas añadidas a `server/routes/router.test.ts`.
+
+- **Batería contra Postgres real: 70 comprobaciones OK, 0 fallos.** Sin Docker disponible en esta sesión, la verificación se hizo con **PGlite** (Postgres compilado a WASM, `@electric-sql/pglite` instalado con `--no-save`): se carga `database/schema.sql` completo con sus datos demo, se sustituye temporalmente `server/db/index.ts` por el driver `drizzle-orm/pglite` y se ataca **el router de producción** (`server/routes/router.ts`) con peticiones simuladas. Al terminar se restauró `server/db/index.ts` (driver de Neon) y se borró el arnés.
+
+Lo que se comprobó de verdad en esa batería:
+
+- **Usuarios**: 401 anónimo, 403 como OPERATOR en listado y alta; alta correcta (201, rol por defecto `OPERATOR`, email normalizado a minúsculas); contraseña débil y rol inventado → 400; usuario duplicado → 409; el hash de contraseña **no aparece** en ninguna respuesta; login con el usuario recién creado.
+- **Reglas de actualización**: cambiar el `username` → 400; `PUT` vacío → 400; autodesactivarse → 400; cambiarse el propio rol → 400; reenviar el propio rol sin cambio → 200; desactivar a otro usuario → 200 y ese usuario ya no puede iniciar sesión; **el guardia del último administrador** ejercitado por el camino real (un admin degradado que conserva su JWT válido intenta desactivar al único admin que queda) → 400 y el admin sigue activo.
+- **Contraseñas**: reseteo por un admin (débil → 400, válida → 200 y login con la nueva); cambio propio anónimo → 401, con contraseña actual incorrecta → 400, nueva débil → 400, nueva igual a la actual → 400, cambio correcto → 200, login con la nueva y la antigua ya rechazada; un `OPERATOR` también puede cambiar la suya.
+- **Ficha de artículo**: 200 con `stockByLocation`, el total cuadra con la suma de sus ubicaciones, id inexistente → 404, id no numérico → 400, y el filtro `?itemId=` del histórico devuelve solo movimientos de ese artículo.
+- **Histórico tras el refactor** (se extrajeron `buildMovementConditions` y `withLocationCodes`, compartidos ahora entre listado y exportación): filas correctas, una transferencia resuelve origen y destino, una entrada trae destino y origen `null`, y el filtro por tipo afecta también al total paginado.
+- **Exportación CSV**: 401 anónima; `Content-Type: text/csv; charset=utf-8`; `Content-Disposition` con `movimientos-AAAA-MM-DD.csv`; BOM presente; cabecera en español; **exporta el total de filas filtradas, no la página**; tipos traducidos; el filtro se aplica igual que en el listado; un filtro sin resultados devuelve solo la cabecera; un tipo inválido → 400; y unas notas con `;` y comillas salen correctamente escapadas.
+- **No regresión**: dashboard, stock, ubicaciones, recepciones, salidas, categorías y almacenes siguen respondiendo 200; endpoint inexistente → 404; método no permitido → 405.
+
+Lo que **no** cubre esta sesión: prueba en navegador real de las tres pantallas nuevas (no había despliegue ni base de datos accesible desde el frontend) y pruebas de concurrencia (PGlite es de una sola conexión; los `SELECT ... FOR UPDATE` nuevos son correctos por construcción pero no se han ejercitado en paralelo como sí se hizo con recepciones y picking en la sesión anterior).
+
+## Resumen rápido (sesión anterior: revisión y estabilización)
 
 El proyecto está **funcionalmente completo, revisado de arriba abajo y verificado contra Postgres real y en navegador real**. Esta sesión no ha añadido módulos nuevos: ha sido una pasada de revisión, corrección de bugs y endurecimiento.
 

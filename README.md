@@ -14,15 +14,16 @@ _Pendiente: añadir capturas del dashboard, ubicaciones, recepción y histórico
 ## Features
 
 - **Dashboard**: artículos activos, stock total, ocupación de ubicaciones, entradas/salidas pendientes, movimientos de los últimos 7 días y stock por categoría.
-- **Artículos**: catálogo maestro con SKU único, categoría, stock mínimo, alta/baja lógica (nunca se borran físicamente).
+- **Artículos**: catálogo maestro con SKU único, categoría, stock mínimo, alta/baja lógica (nunca se borran físicamente), con **ficha de artículo** que reúne su stock por ubicación y sus últimos movimientos.
 - **Ubicaciones**: mapa visual del almacén por zonas con estado calculado (`AVAILABLE` / `PARTIAL` / `OCCUPIED` / `BLOCKED`) y ocupación en tiempo real.
 - **Stock**: consulta de existencias por artículo + ubicación, siempre de solo lectura — el stock solo cambia a través de operaciones transaccionales.
 - **Entradas (recepciones)**: cabecera + líneas, recepción parcial o completa, actualización automática de estado (`PENDING` → `RECEIVING` → `COMPLETED`).
 - **Salidas (pedidos)**: cabecera + líneas, preparación (picking) con selección de ubicación origen y validación de stock disponible.
 - **Movimientos internos**: transferencias entre ubicaciones en un único formulario guiado.
 - **Regularizaciones**: incrementos/decrementos de inventario con motivo (recuento, daño, pérdida, error, otro), sin permitir stock negativo.
-- **Histórico**: trazabilidad completa de todos los movimientos de stock, con filtros por tipo, artículo, ubicación y fecha.
+- **Histórico**: trazabilidad completa de todos los movimientos de stock, con filtros por tipo, artículo, ubicación y fecha, y **exportación a CSV** de todo lo que cumpla el filtro (no solo la página en pantalla).
 - **Autenticación y autorización**: JWT con roles `ADMIN` / `OPERATOR`, validado en el backend en cada petición (no solo ocultando botones).
+- **Usuarios**: alta, edición, cambio de rol y baja lógica desde Configuración (solo `ADMIN`), con reseteo de contraseña; cualquier usuario puede cambiar la suya desde el menú de la cabecera.
 
 ## Tech Stack
 
@@ -68,7 +69,7 @@ Neon PostgreSQL
 
 - El frontend **nunca** habla directamente con Neon. Todo pasa por `/api/*`.
 - Frontend y API se despliegan **en el mismo proyecto de Vercel**: el frontend es un build estático de Vite y `api/[...path].ts` se despliega como Vercel Function con el runtime Node.js oficial.
-- **Una sola función para toda la API.** Vercel convierte cada archivo bajo `api/` en su propia Serverless Function, y el plan Hobby limita un proyecto que no sea Next.js/SvelteKit a **12 funciones por despliegue**; esta API tiene 21 rutas. Por eso los handlers viven en `server/routes/` (fuera de `api/`, donde Vercel no los ve) y un único `api/index.ts` los despacha con una tabla de rutas explícita. Como efecto secundario deseable, hay una sola instancia caliente y **un solo pool de conexiones a Neon** en lugar de 21.
+- **Una sola función para toda la API.** Vercel convierte cada archivo bajo `api/` en su propia Serverless Function, y el plan Hobby limita un proyecto que no sea Next.js/SvelteKit a **12 funciones por despliegue**; esta API tiene 25 rutas. Por eso los handlers viven en `server/routes/` (fuera de `api/`, donde Vercel no los ve) y un único `api/index.ts` los despacha con una tabla de rutas explícita. Como efecto secundario deseable, hay una sola instancia caliente y **un solo pool de conexiones a Neon** en lugar de 25.
 - El enrutado hacia esa función se hace con un **rewrite explícito** en `vercel.json` (`/api/(.*)` → `/api?path=$1`), no con un nombre de archivo catch-all `[...path].ts`: en la práctica el catch-all solo capturaba un segmento, así que `/api/auth/login` ni llegaba a la función. El rewrite es inequívoco e independiente del framework.
 - Cada handler (`server/routes/**/*.ts`) es delgado: valida método y query/params, delega en `server/services/*.ts` para la lógica de negocio y usa `server/utils/http.ts` para dar una respuesta consistente. El router les pasa los parámetros de ruta (`:id`) como tercer argumento.
 - La tabla de rutas de `server/routes/router.ts` **es** la superficie de la API, legible de un vistazo, y está cubierta por tests unitarios.
@@ -186,6 +187,8 @@ Puedes iniciar sesión con el **usuario o el email** (`admin@arcadiawms.com` / `
 - **ADMIN**: acceso completo, incluyendo maestros (artículos, categorías, ubicaciones) y Configuración.
 - **OPERATOR**: operaciones habituales de almacén (recepciones, salidas, transferencias, regularizaciones) y consulta. No ve el menú de Configuración ni puede crear/editar maestros — el backend rechaza esas peticiones con 403 aunque se llamen directamente a la API.
 
+Los usuarios adicionales se crean desde **Configuración → Usuarios** con la cuenta `admin`; no hace falta tocar SQL. Cualquier usuario puede cambiar su propia contraseña desde el menú de su avatar en la cabecera.
+
 ## Deployment on Vercel
 
 1. Sube este repositorio a GitHub (ya está conectado a `https://github.com/JoseAQuinto/ArcadiaWMS`).
@@ -204,6 +207,8 @@ Puedes iniciar sesión con el **usuario o el email** (`admin@arcadiawms.com` / `
 - Queries parametrizadas vía Drizzle (sin concatenación de SQL).
 - Los errores nunca exponen stack traces ni detalles internos al cliente.
 - `DATABASE_URL` y `JWT_SECRET` existen únicamente en el servidor.
+- Política de contraseñas en un único sitio (`passwordSchema`): mínimo 8 caracteres con al menos una letra y un número, aplicada igual al alta, al reseteo por un administrador y al cambio propio. El cambio propio exige la contraseña actual.
+- El backend impide quedarse **sin ningún administrador activo**: un administrador no puede desactivarse ni degradarse a sí mismo, y no se puede desactivar/degradar al último que quede (comprobado bloqueando las filas de administradores dentro de la transacción, para que dos peticiones simultáneas no lo esquiven).
 - Un 401 del backend (token caducado o `JWT_SECRET` rotado) cierra la sesión en el frontend y devuelve al login, en lugar de dejar la aplicación en un estado "logueado" que falla en cada pantalla.
 
 Compromisos asumidos conscientemente (documentados, no olvidados):
@@ -214,7 +219,8 @@ Compromisos asumidos conscientemente (documentados, no olvidados):
 ## Pending / known limitations
 
 - **La capacidad de una ubicación es informativa, no se aplica.** Se usa para calcular el estado (`AVAILABLE` / `PARTIAL` / `OCCUPIED`) y el porcentaje de ocupación, pero una recepción, transferencia o regularización puede dejar una ubicación por encima de su capacidad (el porcentaje se muestra topado al 100%). Es una decisión deliberada para no bloquear operaciones en almacenes cuyos datos de capacidad no estén afinados; si algún día se quiere aplicar de verdad, el sitio es `increaseStock` en `server/services/stock.service.ts`.
-- **No hay pantalla de detalle de artículo.** El endpoint `GET /api/items/:id` y su cliente tipado (`fetchItem` / `useItem`) existen y están probados, pero todavía no hay una vista que los consuma; el listado y el modal de edición cubren el flujo actual.
+- **La exportación del histórico está topada a 5.000 filas** (`MOVEMENT_EXPORT_LIMIT`). El ledger solo crece, y una exportación sin límite acabaría agotando la memoria y el tiempo de la función; por encima de esa cifra hay que acotar por fecha, artículo o tipo. Si algún día hace falta más, el camino es generar el CSV por streaming en vez de en memoria.
+- **El nombre de usuario no se puede cambiar.** Es la identidad con la que se firma el JWT, así que renombrarlo invalidaría en silencio las sesiones abiertas. El email, el nombre completo, el rol y el estado sí son editables.
 - **Filtros de fecha del histórico en UTC.** `dateFrom` / `dateTo` se interpretan como días UTC, no en la zona horaria del navegador. Con un almacén en un único huso es irrelevante; conviene tenerlo en cuenta si algún día hay operación en varias zonas.
 - Sin desplegar todavía: falta la URL de demo pública en Vercel y las capturas del README.
 
